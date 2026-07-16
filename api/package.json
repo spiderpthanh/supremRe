@@ -1,7 +1,7 @@
 {
-  "name": "meal-drop-api",
+  "name": "supremre-drop-api",
   "version": "1.0.0",
-  "description": "MEAL(tm) MRE Hype Drop - backend. One mutating endpoint, race-safe by SQL.",
+  "description": "supremRe MRE Hype Drop - backend. One mutating endpoint, race-safe by SQL.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

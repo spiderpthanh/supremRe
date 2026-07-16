@@ -1,18 +1,18 @@
 /* ============================================================
-   MEAL(tm) — MRE Hype Drop
+   supremRe — MRE Hype Drop
    All payment methods are frontend theater; every path converges
    on POST /claim. Nothing is reserved until that call lands.
    ============================================================ */
 
-const CFG = window.MEAL_CONFIG;
+const CFG = window.SUPREMRE_CONFIG;
 const API = CFG.API_BASE.replace(/\/$/, '');
 const $app = document.getElementById('app');
 
 const LS = {
-  name: 'meal_operative',
-  card: 'meal_card_fields',
-  ballpay: 'meal_ballpay_done',
-  queue: 'meal_queue_start',
+  name: 'supremre_operative',
+  card: 'supremre_card_fields',
+  ballpay: 'supremre_ballpay_done',
+  queue: 'supremre_queue_start',
 };
 
 const state = {
@@ -101,7 +101,7 @@ function showGate(msg = '') {
   $app.innerHTML = `
     <div class="briefing">
       <div class="classified mono">// RESTRICTED // RATION OPS //</div>
-      <div class="boxlogo">MEAL<span class="tm">™</span></div>
+      <div class="boxlogo">supremRe<span class="tm">™</span></div>
       <h1 class="stencil">Operative Check-In</h1>
       <p class="sub">state your name for the manifest</p>
       <input id="namein" class="gate-input" maxlength="20" placeholder="E.G. DAVE" autocomplete="off">
@@ -151,7 +151,7 @@ function showCountdown() {
   $app.innerHTML = `
     <div class="briefing">
       <div class="classified mono">// OPERATION: CHOW CALL // EYES ONLY //</div>
-      <div class="boxlogo">MEAL<span class="tm">™</span></div>
+      <div class="boxlogo">supremRe<span class="tm">™</span></div>
       <h1 class="stencil">Ration Drop Imminent</h1>
       <p class="sub">7 meals. 7 operatives. 0 mercy.</p>
       <div id="clock" class="clock">--:--</div>
@@ -223,7 +223,7 @@ function renderGrid() {
 
   $app.innerHTML = `
     <div class="drop-header">
-      <div class="boxlogo">MEAL<span class="tm">™</span></div>
+      <div class="boxlogo">supremRe<span class="tm">™</span></div>
       <div class="who">OPERATIVE<br><span class="op">${esc(state.me)}</span></div>
     </div>
     ${mine
@@ -242,7 +242,7 @@ function renderGrid() {
 function checkoutHeader(m) {
   return `
     <div class="drop-header">
-      <div class="boxlogo small">MEAL<span class="tm">™</span></div>
+      <div class="boxlogo small">supremRe<span class="tm">™</span></div>
       <div class="who">OPERATIVE<br><span class="op">${esc(state.me)}</span></div>
     </div>
     <div class="checkout-item">
@@ -560,13 +560,13 @@ async function showManifest() {
   $app.innerHTML = `
     <div class="manifest">
       <div class="m-head">
-        <div class="boxlogo small">MEAL<span class="tm">™</span></div>
+        <div class="boxlogo small">supremRe<span class="tm">™</span></div>
         <h2>AFTER ACTION REPORT</h2>
       </div>
       <div class="m-sub">// RATION DROP MANIFEST // ${data.claimed.length}/${data.total} KITS ASSIGNED // ALL SALES FINAL //</div>
       ${rows || '<p class="mono">no kits assigned. the drop was a massacre in reverse.</p>'}
       ${condolence}
-      <div class="m-foot">MEAL&trade; — Meal, Ready-to-Eat &middot; unauthorized resale is a war crime</div>
+      <div class="m-foot">supremRe&trade; &middot; Meal, Ready-to-Eat &middot; unauthorized resale is a war crime</div>
     </div>`;
 }
 
@@ -586,7 +586,7 @@ async function route() {
   } catch {
     $app.innerHTML = `
       <div class="briefing">
-        <div class="boxlogo">MEAL<span class="tm">™</span></div>
+        <div class="boxlogo">supremRe<span class="tm">™</span></div>
         <h1 class="stencil">Comms Down</h1>
         <p class="mono" style="margin-top:12px">cannot reach supply command (${esc(API)}).<br>check API_BASE in config.js, then refresh.</p>
       </div>`;

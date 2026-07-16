@@ -1,4 +1,4 @@
-# MEAL™ — MRE Hype Drop
+# supremRe™ — MRE Hype Drop
 
 A Supreme-style timed drop that distributes 7 physical MREs among 7 friends.
 First-come-first-serve, one meal per person, payment methods are joke gauntlets,

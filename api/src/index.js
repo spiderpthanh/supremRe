@@ -110,7 +110,7 @@ app.use((err, _req, res, _next) => {
 });
 
 initDb().then(() => {
-  app.listen(PORT, () => console.log(`MEAL(tm) drop API live on :${PORT}`));
+  app.listen(PORT, () => console.log(`supremRe drop API live on :${PORT}`));
 }).catch((err) => {
   console.error('DB init failed:', err);
   process.exit(1);

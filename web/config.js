@@ -1,6 +1,6 @@
 // All friction knobs live here. Tune freely between drops.
-window.MEAL_CONFIG = {
-  // Point at the Railway API URL in production, e.g. 'https://meal-drop.up.railway.app'
+window.SUPREMRE_CONFIG = {
+  // Point at the Railway API URL in production, e.g. 'https://supremre-drop.up.railway.app'
   API_BASE: 'http://localhost:3100',
 
   POLL_MS: 1500,            // stock poll interval
