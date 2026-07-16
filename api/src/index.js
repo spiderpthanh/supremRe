@@ -109,9 +109,30 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ reason: 'server_error' });
 });
 
+if (!process.env.DATABASE_URL) {
+  console.error(
+    'FATAL: DATABASE_URL is not set on this service.\n' +
+    'The database connection defaults to localhost:5432, which does not exist here.\n' +
+    'On Railway: open THIS service (not the Postgres one) -> Variables -> add\n' +
+    '  DATABASE_URL = ${{Postgres.DATABASE_URL}}   (match your DB service name)\n' +
+    'or paste the raw connection string value from the Postgres service.'
+  );
+  process.exit(1);
+}
+
 initDb().then(() => {
   app.listen(PORT, () => console.log(`supremRe drop API live on :${PORT}`));
 }).catch((err) => {
-  console.error('DB init failed:', err);
+  if (err.code === 'ECONNREFUSED') {
+    console.error(
+      'DB init failed: could not connect to Postgres at ' +
+      `${err.address}:${err.port}.\n` +
+      'DATABASE_URL is set but points somewhere unreachable. Verify it is your\n' +
+      "Railway Postgres URL (host ending in .railway.internal for the private network),\n" +
+      'and that the API and database are in the same project.'
+    );
+  } else {
+    console.error('DB init failed:', err);
+  }
   process.exit(1);
 });
