@@ -1,7 +1,9 @@
 // All friction knobs live here. Tune freely between drops.
 window.SUPREMRE_CONFIG = {
-  // Point at the Railway API URL in production, e.g. 'https://supremre-drop.up.railway.app'
-  API_BASE: 'https://supremre-production.up.railway.app',
+  // Production API on Railway; local dev automatically talks to localhost.
+  API_BASE: ['localhost', '127.0.0.1'].includes(location.hostname)
+    ? 'http://localhost:3100'
+    : 'https://supremre-production.up.railway.app',
 
   POLL_MS: 1500,            // stock poll interval
 

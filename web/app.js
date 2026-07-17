@@ -32,6 +32,52 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
 }[c]));
 
 const TIER_LABEL = { S: 'S-TIER', A: 'A-TIER', B: 'B-TIER', cursed: 'CURSED' };
+
+// Product-page copy, keyed by menu_no. Terse, catalog-voice, Courier-set.
+const DESC = {
+  1: 'The grail. Beef chili with macaroni in a pouch that trades above retail behind every mess tent on earth. Flameless ration heater included. You will not be the only one deploying for this.',
+  2: 'Beef ravioli in meat sauce. The people’s champ. Reliable, beloved, gone in seconds.',
+  4: 'Spaghetti with beef and sauce. A known quantity. Nobody brags about it, nobody returns it.',
+  8: 'Meatballs in marinara. Solid mid. Ships with crackers and a cheese spread of unverifiable origin.',
+  11: 'Cheese tortellini. Meatless but honest. The jalapeño cheese spread carries the whole kit.',
+  14: 'Pepper jack beef patty. A hamburger, legally speaking. Bread may arrive as a concept.',
+  21: 'Vegetarian omelette. The infamous one. Egg-adjacent loaf, feared service-wide. All sales final applies here with unusual force.',
+};
+
+// The CSS-drawn "product photo": a tan MRE pouch on white.
+// size: '' (grid tile) | 'big' (product page) | 'thumb' (checkout row)
+function pouchHTML(m, size = '') {
+  return `
+    <div class="ph ${size}">
+      <div class="pouch ${m.tier === 'cursed' ? 'cursed' : ''}">
+        <div class="p-band">U.S. GOVERNMENT PROPERTY</div>
+        <div class="p-legal">MEAL, READY-TO-EAT</div>
+        <div class="p-menu">MENU NO. ${m.menu_no}</div>
+        <div class="mre-name">${esc(m.name)}</div>
+        <div class="p-nsn">NSN ${esc(m.nsn)}</div>
+      </div>
+    </div>`;
+}
+
+// Shop chrome: small box logo, tiny lowercase nav. active: 'shop' | 'manifest'
+function pageHeader(active = 'shop') {
+  return `
+    <header class="sup-header">
+      <div class="boxlogo small">supremRe<span class="tm">™</span></div>
+      <nav class="sup-nav">
+        <a id="nav-shop" class="${active === 'shop' ? 'active' : ''}">shop</a>
+        <a id="nav-manifest" class="${active === 'manifest' ? 'active' : ''}">manifest</a>
+        <span class="op">${esc(state.me)}</span>
+      </nav>
+    </header>`;
+}
+
+function wireHeader() {
+  const shop = document.getElementById('nav-shop');
+  const manifest = document.getElementById('nav-manifest');
+  if (shop) shop.onclick = showGrid;
+  if (manifest) manifest.onclick = showManifest;
+}
 const item = (id) => state.mres.find((m) => m.id === id);
 const myClaim = () => state.mres.find((m) => m.claimed_by === state.me);
 const allClaimed = () => state.mres.length > 0 && state.mres.every((m) => m.claimed);
@@ -206,30 +252,25 @@ function showGrid() {
 
 function renderGrid() {
   const mine = myClaim();
+  // Supreme shop grid: photos only. No captions, no borders, no tier badges.
   const tiles = state.mres.map((m) => {
     const sold = m.claimed;
     return `
-      <button class="tile ${sold ? 'sold' : ''}" data-id="${m.id}" ${sold || mine ? 'disabled' : ''}>
-        <div class="inner">
-          <div class="menu-no stencil">MENU NO. ${m.menu_no}</div>
-          <div class="mre-name">${esc(m.name)}</div>
-          <div class="nsn">NSN ${esc(m.nsn)}</div>
-          <div class="legal">Meal, Ready-to-Eat · Individual</div>
-          <span class="tierbadge tier-${m.tier}">${TIER_LABEL[m.tier] ?? m.tier}</span>
-        </div>
-        ${sold ? `<div class="soldout"><span>SOLD OUT<span class="by">BY ${esc(m.claimed_by)}</span></span></div>` : ''}
+      <button class="tile ${sold ? 'sold' : ''}" data-id="${m.id}"
+              ${sold || mine ? 'disabled' : ''}
+              ${sold ? `title="secured by ${esc(m.claimed_by)}"` : ''}>
+        ${pouchHTML(m)}
+        ${sold ? '<div class="soldout"><span>sold out</span></div>' : ''}
       </button>`;
   }).join('');
 
   $app.innerHTML = `
-    <div class="drop-header">
-      <div class="boxlogo">supremRe<span class="tm">™</span></div>
-      <div class="who">OPERATIVE<br><span class="op">${esc(state.me)}</span></div>
-    </div>
+    ${pageHeader('shop')}
     ${mine
       ? `<div class="mystatus">KIT SECURED: <b>MENU NO. ${mine.menu_no} — ${esc(mine.name)}</b>. ONE PER OPERATIVE. ENJOY THE SHOW.</div>`
       : `<div class="mystatus">DROP IS LIVE. PAYMENT COMPLETION IS THE ONLY LOCK — <b>MOVE.</b></div>`}
     <div class="grid">${tiles}</div>`;
+  wireHeader();
 
   if (!mine) {
     $app.querySelectorAll('.tile:not(.sold)').forEach((t) => {
@@ -241,16 +282,18 @@ function renderGrid() {
 // ================= PAYMENT SELECT =================
 function checkoutHeader(m) {
   return `
-    <div class="drop-header">
-      <div class="boxlogo small">supremRe<span class="tm">™</span></div>
-      <div class="who">OPERATIVE<br><span class="op">${esc(state.me)}</span></div>
-    </div>
+    ${pageHeader('shop')}
     <div class="checkout-item">
-      <div class="menu-no stencil">MENU NO. ${m.menu_no} · NSN ${esc(m.nsn)}</div>
-      <div class="mre-name">${esc(m.name)}</div>
+      ${pouchHTML(m, 'thumb')}
+      <div>
+        <div class="ci-name">${esc(m.name)}</div>
+        <div class="ci-meta">menu no. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier} / nsn ${esc(m.nsn)}</div>
+      </div>
     </div>`;
 }
 
+// Payment select, laid out as a Supreme product page:
+// photo left; name / style / description / price / buy buttons right.
 function showPaySelect(id, notice = '') {
   const m = item(id);
   if (!m || m.claimed) return showGrid();
@@ -258,33 +301,33 @@ function showPaySelect(id, notice = '') {
   setView('payselect', 'theme-red');
   const bpDone = localStorage.getItem(LS.ballpay) === '1';
   $app.innerHTML = `
-    ${checkoutHeader(m)}
-    ${notice ? `<div class="pp-loss">${esc(notice)}</div>` : ''}
-    <p style="font-weight:700;text-transform:uppercase;font-size:.85rem">Select payment method. Item is NOT held while you pay.</p>
-    <div class="paydoors">
-      <button class="paydoor" data-pay="ballpay">
-        <div>
-          <div class="pd-name">Ball Pay</div>
-          <div class="pd-tag">${bpDone ? 'verification on file — instant' : 'upload payment verification photo. one tap. if you dare.'}</div>
+    ${pageHeader('shop')}
+    <div class="product">
+      ${pouchHTML(m, 'big')}
+      <div class="pd">
+        ${notice ? `<div class="pp-loss">${esc(notice)}</div>` : ''}
+        <h1 class="pd-name">${esc(m.name)}</h1>
+        <p class="pd-style">Menu No. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier}</p>
+        <p class="pd-desc">${esc(DESC[m.menu_no] || 'Meal, Ready-to-Eat. Individual. Contents classified.')}</p>
+        <p class="pd-price">$0.00 <small>&mdash; 1 per operative. item is not held while you pay.</small></p>
+        <div class="paydoors">
+          <button class="paydoor" data-pay="ballpay">
+            <span class="pd-buy">ball pay</span>
+            <span class="pd-tag">${bpDone ? 'verification on file. instant.' : 'upload payment verification photo. if you dare.'}</span>
+          </button>
+          <button class="paydoor" data-pay="card">
+            <span class="pd-buy">card</span>
+            <span class="pd-tag">standard secure checkout. thorough. very thorough.</span>
+          </button>
+          <button class="paydoor" data-pay="playpal">
+            <span class="pd-buy">playpal</span>
+            <span class="pd-tag">pay in 1 spin of 1. ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}% approval odds.</span>
+          </button>
         </div>
-        <div class="pd-axis">COURAGE</div>
-      </button>
-      <button class="paydoor" data-pay="card">
-        <div>
-          <div class="pd-name">Card</div>
-          <div class="pd-tag">standard secure checkout form. thorough. very thorough.</div>
-        </div>
-        <div class="pd-axis">PATIENCE</div>
-      </button>
-      <button class="paydoor" data-pay="playpal">
-        <div>
-          <div class="pd-name">Playpal</div>
-          <div class="pd-tag">pay in 1 spin of 1. ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}% approval odds.</div>
-        </div>
-        <div class="pd-axis">LUCK</div>
-      </button>
-    </div>
-    <button class="backlink" id="back">&larr; back to the drop</button>`;
+        <button class="backlink" id="back">back to shop</button>
+      </div>
+    </div>`;
+  wireHeader();
   $app.querySelector('[data-pay="ballpay"]').onclick = () => showBallPay(id);
   $app.querySelector('[data-pay="card"]').onclick = () => showCardForm(id);
   $app.querySelector('[data-pay="playpal"]').onclick = () => showPlaypal(id);
@@ -301,10 +344,10 @@ function showBallPay(id) {
     <div class="ballpay-drop">
       <div class="bp-big">BALL PAY&trade; PAYMENT VERIFICATION</div>
       ${bpDone
-        ? `<p style="margin:10px 0">Verification photo already on file.</p>
-           <button id="bp-go" class="btn btn-red">PAY WITH BALL PAY</button>`
-        : `<p style="margin:10px 0">Upload payment verification photo to proceed.</p>
-           <label class="filelabel" for="bp-file">UPLOAD PHOTO</label>
+        ? `<p>Verification photo already on file.</p>
+           <button id="bp-go" class="btn btn-red">pay with ball pay</button>`
+        : `<p>Upload payment verification photo to proceed.</p>
+           <label class="filelabel" for="bp-file">upload photo</label>
            <input type="file" id="bp-file" accept="image/*">`}
       <div class="bp-fine">
         photo is processed locally and never leaves your device.<br>
@@ -313,7 +356,8 @@ function showBallPay(id) {
       </div>
     </div>
     <div id="bp-status" class="notice"></div>
-    <button class="backlink" id="back">&larr; other payment methods</button>`;
+    <button class="backlink" id="back">other payment methods</button>`;
+  wireHeader();
   document.getElementById('back').onclick = () => showPaySelect(id);
 
   const verifyAndClaim = () => {
@@ -384,7 +428,8 @@ function showCardForm(id) {
       <button type="submit" class="btn btn-red btn-block">SUBMIT SECURE PAYMENT</button>
       <div class="notice" id="cf-status"></div>
     </form>
-    <button class="backlink" id="back">&larr; other payment methods</button>`;
+    <button class="backlink" id="back">other payment methods</button>`;
+  wireHeader();
   document.getElementById('back').onclick = () => showPaySelect(id);
 
   const form = document.getElementById('cardform');
@@ -429,7 +474,7 @@ function showPlaypal(id) {
   $app.innerHTML = `
     ${checkoutHeader(m)}
     <div class="playpal">
-      <div class="stencil" style="font-size:1.2rem">PLAYPAL&trade; — PAY IN 1 SPIN OF 1</div>
+      <div class="pp-title">Playpal&trade; &mdash; pay in 1 spin of 1</div>
       <div class="reels">
         <div class="reel" id="r0">?</div>
         <div class="reel" id="r1">?</div>
@@ -442,7 +487,8 @@ function showPlaypal(id) {
       </div>
       <div class="notice" id="pp-status"></div>
     </div>
-    <button class="backlink" id="back">&larr; other payment methods</button>`;
+    <button class="backlink" id="back">other payment methods</button>`;
+  wireHeader();
   document.getElementById('back').onclick = () => showPaySelect(id);
 
   document.getElementById('spin').onclick = () => {
@@ -567,7 +613,10 @@ async function showManifest() {
       ${rows || '<p class="mono">no kits assigned. the drop was a massacre in reverse.</p>'}
       ${condolence}
       <div class="m-foot">supremRe&trade; &middot; Meal, Ready-to-Eat &middot; unauthorized resale is a war crime</div>
-    </div>`;
+    </div>
+    ${data.complete ? '' : '<div style="text-align:center"><button class="backlink" id="back-shop">back to shop</button></div>'}`;
+  const back = document.getElementById('back-shop');
+  if (back) back.onclick = showGrid;
 }
 
 // ================= BOOT =================

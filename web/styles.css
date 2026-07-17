@@ -1,6 +1,8 @@
 /* ============================================================
    supremRe — Supreme skeleton, MRE voice.
-   Drab briefing pre-drop; Supreme red/white once live.
+   Shop pages copy the Supreme webstore layout: bare photo grid,
+   two-column product page, Courier checkout, tiny lowercase UI.
+   Pre-drop and drama screens stay military.
    ============================================================ */
 
 :root {
@@ -10,17 +12,21 @@
   --drab-dark: #2c3019;
   --drab-light: #6b6d47;
   --sand: #cfc9a6;
-  --ink: #111;
+  --ink: #000;
+  --gray: #999;
   --paper: #fff;
+  --pouch: #b3a380;
+  --pouch-ink: #453a22;
   --logo-font: 'Archivo', 'Futura', 'Helvetica Neue', Arial, sans-serif;
   --stencil-font: 'Black Ops One', 'Archivo', sans-serif;
-  --mono-font: 'Courier New', monospace;
+  --shop-font: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+  --courier: 'Courier New', Courier, monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: var(--logo-font);
+  font-family: var(--shop-font);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   transition: background-color .4s ease;
@@ -29,10 +35,11 @@ body {
 body.theme-drab { background: var(--drab); color: var(--sand); }
 body.theme-red  { background: var(--paper); color: var(--ink); }
 
-#app { max-width: 960px; margin: 0 auto; padding: 16px; }
+#app { max-width: 980px; margin: 0 auto; padding: 10px 14px 40px; }
 
 button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; }
+a { color: inherit; }
 
 /* ---- Box logo -------------------------------------------------- */
 .boxlogo {
@@ -49,31 +56,235 @@ input, select { font-family: inherit; }
   user-select: none;
 }
 .boxlogo .tm { font-size: .8rem; vertical-align: super; font-style: normal; }
-.boxlogo.small { font-size: 1.3rem; padding: 5px 12px 8px 9px; }
-.boxlogo.inverse { background: #fff; color: var(--red); }
+.boxlogo.small { font-size: 1.15rem; padding: 5px 12px 8px 9px; }
 
 /* ---- Stencil / military type ----------------------------------- */
-.stencil {
+.stencil { font-family: var(--stencil-font); text-transform: uppercase; letter-spacing: .06em; }
+.mono { font-family: var(--courier); }
+
+/* ---- Shop header: small logo, tiny lowercase nav ----------------- */
+.sup-header {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 14px 0 26px;
+}
+.sup-nav { font-size: 11px; text-transform: lowercase; }
+.sup-nav a {
+  text-decoration: none; margin-left: 14px; cursor: pointer;
+  border-bottom: 1px solid transparent;
+}
+.sup-nav a:hover, .sup-nav a.active { border-bottom-color: var(--ink); }
+.sup-nav .op { margin-left: 14px; color: var(--red); font-weight: bold; font-style: italic; }
+
+/* ---- Status line (live/kit secured) ------------------------------- */
+.mystatus {
+  font-family: var(--courier); font-size: 11px; color: var(--red);
+  margin: 0 0 18px; letter-spacing: .02em;
+}
+.mystatus b { font-weight: bold; }
+
+/* ---- Drop grid: bare photo squares, no borders, no captions ------- */
+.grid {
+  display: grid; gap: 22px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+.tile {
+  position: relative; border: none; background: #fff; padding: 0;
+  cursor: pointer; width: 100%; text-align: center;
+}
+.tile:disabled { cursor: default; }
+.tile:hover:not(.sold):not(:disabled) .pouch { transform: scale(1.02); }
+.tile.sold .ph { opacity: .35; }
+
+/* "sold out" tag over the photo, Supreme-style: tiny red italic */
+.soldout {
+  position: absolute; top: 6px; left: 6px; pointer-events: none;
+}
+.soldout span {
+  font-family: var(--shop-font); font-size: 11px; font-weight: bold;
+  font-style: italic; text-transform: lowercase; letter-spacing: 0;
+  background: #fff; color: var(--red); padding: 1px 5px 2px;
+  border: none; transform: none;
+}
+.soldout .by { display: none; }
+
+/* ---- The product "photo": a CSS-drawn MRE pouch -------------------- */
+.ph {
+  aspect-ratio: 1; background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.pouch {
+  width: 74%; aspect-ratio: 0.8; background: var(--pouch);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .55em; text-align: center; padding: 8% 6%;
+  border-radius: 4px 4px 3px 3px;
+  color: var(--pouch-ink);
   font-family: var(--stencil-font);
-  text-transform: uppercase;
-  letter-spacing: .06em;
+  font-size: 10px; line-height: 1.25;
+  box-shadow:
+    inset 0 0 0 2px rgba(0,0,0,.07),
+    inset 0 -10px 22px rgba(0,0,0,.10),
+    inset 8px 0 14px rgba(0,0,0,.05),
+    inset -8px 0 14px rgba(0,0,0,.05),
+    2px 3px 6px rgba(0,0,0,.14);
+  position: relative;
+  transition: transform .08s ease;
 }
-.mono { font-family: var(--mono-font); }
+/* heat-seal crimp band along the top, with tear notch */
+.pouch::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 9%;
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(0,0,0,.10) 0, rgba(0,0,0,.10) 2px,
+      transparent 2px, transparent 6px);
+  border-bottom: 1px dashed rgba(0,0,0,.28);
+}
+.pouch::after {
+  content: '\25C0 TEAR'; position: absolute; top: 2.5%; right: 4%;
+  font-size: .55em; letter-spacing: .1em; opacity: .55;
+  font-family: var(--shop-font); font-weight: bold;
+}
+.pouch .p-band { font-size: .6em; letter-spacing: .06em; opacity: .75; font-family: var(--shop-font); font-weight: bold; }
+.pouch .p-legal { font-size: .78em; letter-spacing: .12em; }
+.pouch .p-menu { font-size: .95em; }
+.pouch .mre-name { font-size: 1.25em; text-transform: uppercase; }
+.pouch .p-nsn { font-family: var(--courier); font-size: .72em; font-weight: bold; opacity: .8; }
+.pouch.cursed { background: #a9a382; }
 
-/* ---- Header bar (live phase) ------------------------------------ */
-.drop-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 0 16px; border-bottom: 4px solid var(--ink);
-  margin-bottom: 18px;
-}
-.drop-header .who { font-size: .8rem; font-weight: 700; text-transform: uppercase; text-align: right; }
-.drop-header .who .op { color: var(--red); }
+.ph.big .pouch { font-size: 16px; width: 72%; }
+.ph.thumb { aspect-ratio: auto; width: 54px; height: 54px; flex: none; }
+.ph.thumb .pouch { font-size: 3.2px; width: 82%; gap: .5em; }
 
-/* ---- Gate / countdown (drab) ------------------------------------ */
-.briefing {
-  max-width: 560px; margin: 6vh auto 0; text-align: center;
+/* ---- Product page: image left, details right ----------------------- */
+.product {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+  align-items: start;
 }
+.pd .pd-name { font-size: 13px; font-weight: bold; margin-bottom: 2px; }
+.pd .pd-style { font-size: 11px; color: var(--gray); margin-bottom: 14px; }
+.pd .pd-desc {
+  font-family: var(--courier); font-size: 11px; line-height: 1.7;
+  margin-bottom: 14px; max-width: 42ch;
+}
+.pd .pd-price { font-size: 12px; font-weight: bold; margin-bottom: 18px; }
+.pd .pd-price small { color: var(--gray); font-weight: normal; }
+
+.pp-loss {
+  font-family: var(--courier); color: var(--red); font-size: 12px;
+  font-weight: bold; margin: 0 0 12px;
+}
+
+/* payment doors: stacked red add-to-cart buttons + tiny captions */
+.paydoors { display: flex; flex-direction: column; gap: 10px; }
+.paydoor {
+  display: flex; align-items: center; gap: 12px;
+  background: none; border: none; padding: 0; text-align: left;
+}
+.paydoor .pd-buy {
+  display: inline-block; background: var(--red); color: #fff;
+  font-family: var(--shop-font); font-weight: bold; font-style: italic;
+  font-size: 12px; text-transform: lowercase; letter-spacing: .02em;
+  padding: 9px 16px; min-width: 96px; text-align: center; flex: none;
+}
+.paydoor:hover .pd-buy { background: var(--red-dark); }
+.paydoor .pd-tag {
+  font-family: var(--courier); font-size: 10px; color: var(--gray);
+  text-transform: lowercase;
+}
+
+/* ---- Mini product row on checkout screens --------------------------- */
+.checkout-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 2px 0 14px; margin-bottom: 16px;
+  border-bottom: 1px solid #eee;
+}
+.checkout-item .ci-name { font-size: 12px; font-weight: bold; }
+.checkout-item .ci-meta { font-size: 10px; color: var(--gray); text-transform: lowercase; }
+
+/* ---- Buttons (drama screens keep the big treatment) ------------------ */
+.btn {
+  display: inline-block; border: none; text-transform: lowercase;
+  font-weight: bold; font-style: italic; letter-spacing: .02em;
+  padding: 12px 24px; font-size: 14px;
+}
+.btn-red { background: var(--red); color: #fff; }
+.btn-red:hover { background: var(--red-dark); }
+.btn-block { display: block; width: 100%; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.backlink {
+  background: none; border: none; font-family: var(--courier);
+  font-size: 11px; color: var(--gray); text-decoration: underline;
+  padding: 14px 0 0; text-transform: lowercase; display: inline-block;
+}
+.backlink:hover { color: var(--ink); }
+
+/* ---- Ball Pay --------------------------------------------------------- */
+.ballpay-drop {
+  border: 1px dashed #bbb; padding: 34px 18px; text-align: center;
+  margin: 4px 0 8px; background: #fcfcfc; max-width: 460px;
+}
+.ballpay-drop .bp-big { font-size: 12px; font-weight: bold; letter-spacing: .04em; margin-bottom: 8px; }
+.ballpay-drop p { font-family: var(--courier); font-size: 11px; margin: 8px 0 14px; }
+.ballpay-drop .bp-fine {
+  font-family: var(--courier); font-size: 10px; color: var(--gray);
+  margin-top: 14px; line-height: 1.7;
+}
+.filelabel {
+  display: inline-block; background: var(--red); color: #fff;
+  font-weight: bold; font-style: italic; font-size: 12px;
+  text-transform: lowercase; padding: 9px 18px; cursor: pointer;
+}
+.filelabel:hover { background: var(--red-dark); }
+input[type="file"] { display: none; }
+
+/* ---- Card form: Supreme-checkout plain --------------------------------- */
+.cardform { margin-top: 4px; max-width: 460px; }
+.cardform .field { margin-bottom: 14px; }
+.cardform label {
+  display: block; font-family: var(--courier); font-size: 11px;
+  font-weight: bold; margin-bottom: 4px;
+}
+.cardform .hint { font-family: var(--courier); font-size: 10px; color: var(--gray); margin-top: 3px; }
+.cardform input {
+  width: 100%; padding: 7px 8px; border: 1px solid #bbb;
+  font-family: var(--courier); font-size: 12px; border-radius: 0;
+}
+.cardform input:focus { outline: 1px solid var(--ink); }
+.cardform .err {
+  color: var(--red); font-family: var(--courier); font-size: 10px;
+  font-weight: bold; margin-top: 3px;
+}
+.cardform input.bad { border-color: var(--red); background: #fff5f5; }
+.cardform button[type="submit"] {
+  background: var(--red); color: #fff; border: none;
+  font-weight: bold; font-style: italic; font-size: 12px;
+  text-transform: lowercase; padding: 10px 20px; margin-top: 4px;
+}
+.cardform button[type="submit"]:hover { background: var(--red-dark); }
+
+/* ---- Playpal ------------------------------------------------------------ */
+.playpal { padding: 6px 0; max-width: 460px; }
+.playpal .pp-title { font-size: 12px; font-weight: bold; letter-spacing: .04em; }
+.reels { display: flex; gap: 8px; margin: 18px 0; }
+.reel {
+  width: 76px; height: 76px; border: 1px solid var(--ink); background: #fff;
+  font-size: 2.3rem; display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.reel.spinning { animation: reelshake .12s infinite; }
+@keyframes reelshake { 50% { transform: translateY(3px); } }
+.playpal .pp-fine {
+  font-family: var(--courier); font-size: 10px; color: var(--gray);
+  margin-top: 12px; line-height: 1.7;
+}
+
+.notice { font-family: var(--courier); font-size: 11px; color: var(--red); margin-top: 10px; min-height: 1.2em; }
+
+/* ---- Gate / countdown (drab military, unchanged voice) ------------------ */
+.briefing { max-width: 560px; margin: 6vh auto 0; text-align: center; }
 .briefing .classified {
+  font-family: var(--courier);
   font-size: .75rem; letter-spacing: .5em; color: var(--sand);
   opacity: .8; margin-bottom: 14px;
 }
@@ -87,17 +298,17 @@ input, select { font-family: inherit; }
   text-shadow: 0 0 24px rgba(255,255,255,.15);
   font-variant-numeric: tabular-nums;
 }
-.queuepos { font-family: var(--mono-font); font-size: 1rem; color: var(--sand); margin-bottom: 26px; }
+.queuepos { font-family: var(--courier); font-size: 1rem; color: var(--sand); margin-bottom: 26px; }
 .queuepos b { color: #fff; }
 
 .rules {
   text-align: left; border: 2px dashed var(--sand); padding: 16px 20px;
-  font-family: var(--mono-font); font-size: .85rem; line-height: 1.9;
+  font-family: var(--courier); font-size: .85rem; line-height: 1.9;
   background: var(--drab-dark);
 }
 .rules h3 { font-family: var(--stencil-font); letter-spacing: .1em; margin-bottom: 8px; color: #fff; }
 .rules li { list-style: none; }
-.rules li::before { content: '■ '; color: var(--red); }
+.rules li::before { content: '\25A0 '; color: var(--red); }
 
 .gate-input {
   display: block; width: 100%; margin: 18px 0 10px;
@@ -106,123 +317,9 @@ input, select { font-family: inherit; }
   text-transform: uppercase; padding: 12px;
 }
 .gate-input:focus { outline: 3px solid var(--red); }
+.briefing .btn { font-size: 1.05rem; padding: 14px 28px; text-transform: uppercase; }
 
-/* ---- Buttons ----------------------------------------------------- */
-.btn {
-  display: inline-block; border: none; text-transform: uppercase;
-  font-weight: 900; font-style: italic; letter-spacing: .02em;
-  padding: 14px 28px; font-size: 1.05rem;
-}
-.btn-red { background: var(--red); color: #fff; }
-.btn-red:hover { background: var(--red-dark); }
-.btn-ghost { background: transparent; color: inherit; border: 2px solid currentColor; }
-.btn-block { display: block; width: 100%; }
-.btn:disabled { opacity: .4; cursor: not-allowed; }
-
-/* ---- Drop grid ---------------------------------------------------- */
-.grid {
-  display: grid; gap: 14px;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-}
-.tile {
-  position: relative; border: 2px solid var(--ink); background: #fff;
-  padding: 14px; cursor: pointer; text-align: left; width: 100%;
-  transition: transform .06s ease;
-}
-.tile:hover:not(.sold) { transform: translateY(-2px); box-shadow: 4px 4px 0 var(--red); }
-.tile .menu-no { font-family: var(--stencil-font); font-size: .8rem; color: var(--red); }
-.tile .mre-name { font-weight: 900; font-style: italic; font-size: 1.25rem; margin: 4px 0 10px; text-transform: uppercase; }
-.tile .nsn { font-family: var(--mono-font); font-size: .7rem; color: #555; }
-.tile .legal { font-size: .6rem; letter-spacing: .12em; color: #888; margin-top: 8px; text-transform: uppercase; }
-.tile .tierbadge {
-  position: absolute; top: 10px; right: 10px;
-  font-family: var(--stencil-font); font-size: .75rem;
-  padding: 2px 7px; border: 2px solid var(--ink);
-}
-.tier-S { background: var(--red); color: #fff; border-color: var(--red) !important; }
-.tier-A { background: var(--ink); color: #fff; }
-.tier-B { background: #fff; color: var(--ink); }
-.tier-cursed { background: var(--drab); color: var(--sand); border-color: var(--drab) !important; }
-
-.tile.sold { cursor: default; }
-.tile.sold .inner { opacity: .25; }
-.soldout {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  pointer-events: none;
-}
-.soldout span {
-  font-family: var(--stencil-font); font-size: 1.4rem; color: var(--red);
-  border: 3px solid var(--red); padding: 4px 12px; transform: rotate(-8deg);
-  background: rgba(255,255,255,.85);
-}
-.soldout .by { display: block; font-size: .65rem; text-align: center; color: var(--ink); }
-
-.mystatus {
-  border: 3px solid var(--red); padding: 10px 14px; margin-bottom: 16px;
-  font-weight: 700; text-transform: uppercase; font-size: .9rem;
-  background: #fff;
-}
-.mystatus b { color: var(--red); }
-
-/* ---- Payment select ----------------------------------------------- */
-.paydoors { display: grid; gap: 14px; margin-top: 18px; }
-.paydoor {
-  border: 3px solid var(--ink); background: #fff; padding: 18px; text-align: left;
-  display: flex; justify-content: space-between; align-items: center;
-}
-.paydoor:hover { border-color: var(--red); box-shadow: 4px 4px 0 var(--red); }
-.paydoor .pd-name { font-weight: 900; font-style: italic; font-size: 1.4rem; text-transform: uppercase; }
-.paydoor .pd-tag { font-family: var(--mono-font); font-size: .78rem; color: #555; margin-top: 4px; }
-.paydoor .pd-axis { font-family: var(--stencil-font); font-size: .7rem; color: var(--red); }
-
-.checkout-item {
-  border-bottom: 4px solid var(--ink); padding-bottom: 10px; margin-bottom: 10px;
-}
-.checkout-item .menu-no { font-family: var(--stencil-font); color: var(--red); font-size: .85rem; }
-.checkout-item .mre-name { font-weight: 900; font-style: italic; font-size: 1.6rem; text-transform: uppercase; }
-
-.backlink { background: none; border: none; font-family: var(--mono-font); font-size: .85rem; color: #555; text-decoration: underline; padding: 6px 0; }
-
-/* ---- Ball Pay ------------------------------------------------------ */
-.ballpay-drop {
-  border: 3px dashed var(--ink); padding: 40px 20px; text-align: center; margin: 18px 0;
-  background: #fafafa;
-}
-.ballpay-drop .bp-big { font-family: var(--stencil-font); font-size: 1.3rem; margin-bottom: 8px; }
-.ballpay-drop .bp-fine { font-family: var(--mono-font); font-size: .75rem; color: #777; margin-top: 10px; line-height: 1.6; }
-.filelabel {
-  display: inline-block; background: var(--ink); color: #fff; padding: 14px 26px;
-  font-weight: 900; font-style: italic; text-transform: uppercase; cursor: pointer;
-}
-.filelabel:hover { background: var(--red); }
-input[type="file"] { display: none; }
-
-/* ---- Card form ------------------------------------------------------ */
-.cardform { margin-top: 14px; }
-.cardform .field { margin-bottom: 16px; }
-.cardform label { display: block; font-weight: 700; text-transform: uppercase; font-size: .8rem; margin-bottom: 4px; }
-.cardform .hint { font-family: var(--mono-font); font-size: .72rem; color: #777; margin-top: 3px; }
-.cardform input {
-  width: 100%; padding: 11px 12px; border: 2px solid var(--ink); font-size: 1rem;
-}
-.cardform input:focus { outline: 3px solid var(--red); }
-.cardform .err { color: var(--red); font-size: .78rem; font-weight: 700; margin-top: 3px; text-transform: uppercase; }
-.cardform input.bad { border-color: var(--red); background: #fff2f2; }
-
-/* ---- Playpal --------------------------------------------------------- */
-.playpal { text-align: center; padding: 20px 0; }
-.reels { display: flex; justify-content: center; gap: 12px; margin: 22px 0; }
-.reel {
-  width: 84px; height: 84px; border: 3px solid var(--ink); background: #fff;
-  font-size: 2.6rem; display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-}
-.reel.spinning { animation: reelshake .12s infinite; }
-@keyframes reelshake { 50% { transform: translateY(3px); } }
-.playpal .pp-fine { font-family: var(--mono-font); font-size: .75rem; color: #777; margin-top: 14px; }
-.pp-loss { font-family: var(--stencil-font); color: var(--red); font-size: 1.6rem; margin: 14px 0; }
-
-/* ---- Result screens --------------------------------------------------- */
+/* ---- Result screens (full-bleed drama) ----------------------------------- */
 .fullscreen {
   position: fixed; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center; padding: 24px; z-index: 50;
@@ -234,7 +331,8 @@ input[type="file"] { display: none; }
 .fullscreen h1 { font-family: var(--stencil-font); font-size: clamp(2.2rem, 10vw, 4.5rem); margin: 14px 0; }
 .fullscreen .fs-detail { font-size: 1.1rem; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
 .fullscreen .fs-op { font-family: var(--stencil-font); font-size: 1.6rem; margin: 10px 0 26px; }
-.fullscreen .btn { font-size: 1.2rem; }
+.fullscreen .btn { font-size: 1.2rem; text-transform: uppercase; }
+.fullscreen .backlink { color: var(--sand); }
 
 @keyframes redflash { from { opacity: 1; } to { opacity: 0; } }
 .redflash {
@@ -242,34 +340,36 @@ input[type="file"] { display: none; }
   animation: redflash .9s ease forwards; pointer-events: none;
 }
 
-/* ---- Manifest ----------------------------------------------------------- */
+/* ---- Manifest (after action report — the shareable screenshot) ------------ */
 .manifest {
   background: #fff; color: var(--ink); border: 4px solid var(--ink);
   max-width: 620px; margin: 4vh auto; padding: 26px;
 }
 .manifest .m-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 4px solid var(--ink); padding-bottom: 12px; margin-bottom: 6px; }
 .manifest h2 { font-family: var(--stencil-font); font-size: 1.2rem; }
-.manifest .m-sub { font-family: var(--mono-font); font-size: .72rem; color: #666; margin-bottom: 16px; }
+.manifest .m-sub { font-family: var(--courier); font-size: .72rem; color: #666; margin-bottom: 16px; }
 .m-row {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 4px; border-bottom: 1px solid #ddd;
 }
 .m-row .m-op { font-family: var(--stencil-font); font-size: 1rem; flex: 1; }
 .m-row .m-item { flex: 2; }
-.m-row .m-item .nm { font-weight: 900; font-style: italic; text-transform: uppercase; }
-.m-row .m-item .mn { font-family: var(--mono-font); font-size: .7rem; color: #666; }
-.m-row .tierbadge { position: static; font-family: var(--stencil-font); font-size: .75rem; padding: 2px 8px; border: 2px solid var(--ink); }
+.m-row .m-item .nm { font-weight: 900; font-style: italic; text-transform: uppercase; font-family: var(--logo-font); }
+.m-row .m-item .mn { font-family: var(--courier); font-size: .7rem; color: #666; }
+.m-row .tierbadge { font-family: var(--stencil-font); font-size: .75rem; padding: 2px 8px; border: 2px solid var(--ink); }
+.tier-S { background: var(--red); color: #fff; border-color: var(--red) !important; }
+.tier-A { background: var(--ink); color: #fff; }
+.tier-B { background: #fff; color: var(--ink); }
+.tier-cursed { background: var(--drab); color: var(--sand); border-color: var(--drab) !important; }
 .m-row.cursed-row { background: #f4f3e7; }
 .condolence {
   margin-top: 16px; border: 2px dashed var(--drab); padding: 12px;
-  font-family: var(--mono-font); font-size: .8rem; color: var(--drab-dark); background: #f4f3e7;
+  font-family: var(--courier); font-size: .8rem; color: var(--drab-dark); background: #f4f3e7;
 }
 .m-foot { margin-top: 18px; text-align: center; font-size: .65rem; letter-spacing: .2em; text-transform: uppercase; color: #999; }
 
-.notice { font-family: var(--mono-font); font-size: .85rem; color: var(--red); margin-top: 8px; min-height: 1.2em; }
-
-@media (max-width: 520px) {
-  .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .tile { padding: 10px; }
-  .tile .mre-name { font-size: 1rem; }
+@media (max-width: 620px) {
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 14px 8px; }
+  .product { grid-template-columns: 1fr; gap: 8px; }
+  .ph.big { max-width: 340px; margin: 0 auto; }
 }
