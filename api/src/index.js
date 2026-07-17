@@ -9,6 +9,15 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const RESET_SECRET = process.env.RESET_SECRET || 'hooah';
 
+// ---- GET / — health check + endpoint map. Keeps the base URL from 404ing. --
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'supremRe drop API',
+    status: 'ok',
+    endpoints: ['GET /mres', 'GET /config', 'GET /manifest', 'POST /claim', 'POST /reset'],
+  });
+});
+
 // ---- GET /config — drop time + server clock, for countdown sync ------------
 app.get('/config', async (_req, res) => {
   const dropTime = await getDropTime();
