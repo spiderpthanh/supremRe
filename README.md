@@ -58,6 +58,21 @@ curl -X POST localhost:3000/reset -H 'Content-Type: application/json' \
   -d '{"secret":"hooah","drop_in_seconds":900}'
 ```
 
+## Resetting between test runs (command post)
+
+Open the site with `#reset` on the URL — e.g. `https://your-site.pages.dev/#reset`
+(or `#admin`). The hidden **command post** panel lets you, without touching curl:
+
+- **Reset claims — drop live now**: clears every claim, drop stays open.
+- **Reset claims + countdown in N min**: clears claims and reschedules the
+  drop. Everyone's open tab snaps back to the countdown within ~15 seconds
+  (clients re-sync `drop_time` every ~10 polls) — a full re-run needs no refreshes.
+- **Clear this browser's data**: wipes your saved name, card fields, and
+  Ball Pay flag on this device only, so you can replay as a fresh operative.
+
+The reset secret is remembered in your browser after first use. Server-side it
+is still just `POST /reset` — the panel is a UI over the same endpoint.
+
 ## Race test (run this before trusting anything)
 
 Hammers `/claim` with 20 users × 7 items simultaneously and asserts no

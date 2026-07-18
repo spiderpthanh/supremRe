@@ -13,6 +13,7 @@ const LS = {
   card: 'supremre_card_fields',
   ballpay: 'supremre_ballpay_done',
   queue: 'supremre_queue_start',
+  adminSecret: 'supremre_admin_secret',
 };
 
 const state = {
@@ -122,9 +123,19 @@ async function syncConfig() {
 }
 
 // ---------------- polling ----------------
+let pollCount = 0;
 function startPolling() {
   if (state.pollTimer) return;
   state.pollTimer = setInterval(async () => {
+    // Every ~10th poll, re-sync drop_time so an admin reset that reschedules
+    // the drop pulls live clients back to the countdown without a refresh.
+    if (++pollCount % 10 === 0) {
+      await syncConfig().catch(() => {});
+      if (state.dropTime && serverNow() < state.dropTime
+          && (state.view === 'grid' || state.view === 'manifest')) {
+        return showCountdown();
+      }
+    }
     try { await refreshStock(); } catch { return; }
     // Only the grid rerenders on poll — never clobber a form mid-checkout.
     if (state.view === 'grid') {
@@ -619,6 +630,94 @@ async function showManifest() {
   if (back) back.onclick = showGrid;
 }
 
+// ================= COMMAND POST (dev reset, #reset in the URL) =================
+async function showAdmin() {
+  setView('admin', 'theme-drab');
+  const savedSecret = localStorage.getItem(LS.adminSecret) || '';
+  $app.innerHTML = `
+    <div class="briefing">
+      <div class="classified mono">// COMMAND POST // AUTHORIZED PERSONNEL ONLY //</div>
+      <div class="boxlogo">supremRe<span class="tm">™</span></div>
+      <h1 class="stencil">Command Post</h1>
+      <p class="sub">reset the drop between test runs</p>
+
+      <input id="adm-secret" class="gate-input" type="password"
+             placeholder="RESET SECRET" value="${esc(savedSecret)}" autocomplete="off">
+      <input id="adm-mins" class="gate-input" type="number" min="0" step="1" value="15"
+             placeholder="MINUTES UNTIL DROP" style="font-family:var(--courier);font-size:1rem">
+
+      <button id="adm-reset-live" class="btn btn-red btn-block" style="margin-bottom:10px">
+        RESET CLAIMS — DROP LIVE NOW
+      </button>
+      <button id="adm-reset-sched" class="btn btn-red btn-block" style="margin-bottom:10px">
+        RESET CLAIMS + COUNTDOWN IN <span id="adm-mins-label">15</span> MIN
+      </button>
+      <button id="adm-clear-local" class="btn" style="margin-bottom:10px;background:var(--drab-dark);color:var(--sand);width:100%">
+        CLEAR THIS BROWSER'S DATA (name, card, ball pay)
+      </button>
+
+      <div id="adm-status" class="notice" style="min-height:2.4em"></div>
+      <button class="backlink" id="adm-back" style="color:var(--sand)">back to the app</button>
+      <p class="mono" style="margin-top:10px;font-size:.7rem;opacity:.6">
+        server state lives in postgres; other players' pages pick up a reset
+        within ~15s of polling. clearing browser data only affects this device.
+      </p>
+    </div>`;
+
+  const status = document.getElementById('adm-status');
+  const minsInput = document.getElementById('adm-mins');
+  minsInput.oninput = () => {
+    document.getElementById('adm-mins-label').textContent = minsInput.value || '?';
+  };
+
+  const doReset = async (dropInSeconds) => {
+    const secret = document.getElementById('adm-secret').value.trim();
+    if (!secret) { status.textContent = 'ENTER THE RESET SECRET.'; return; }
+    localStorage.setItem(LS.adminSecret, secret);
+    status.textContent = 'TRANSMITTING...';
+    try {
+      const res = await fetch(`${API}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          dropInSeconds === null ? { secret } : { secret, drop_in_seconds: dropInSeconds }
+        ),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        status.textContent = body.reason === 'bad_secret'
+          ? 'BAD SECRET. ACCESS DENIED.' : `RESET FAILED (${res.status}).`;
+        return;
+      }
+      await syncConfig().catch(() => {});
+      await refreshStock().catch(() => {});
+      const t = body.drop_time ? new Date(body.drop_time).toLocaleTimeString() : 'unchanged';
+      status.textContent = `ALL CLAIMS CLEARED. DROP TIME: ${t}.`;
+    } catch {
+      status.textContent = 'TRANSMISSION FAILED. IS THE API UP?';
+    }
+  };
+
+  document.getElementById('adm-reset-live').onclick = () => doReset(-1);
+  document.getElementById('adm-reset-sched').onclick = () => {
+    const mins = Number(minsInput.value);
+    if (!Number.isFinite(mins) || mins < 0) { status.textContent = 'MINUTES MUST BE A NUMBER.'; return; }
+    doReset(Math.round(mins * 60));
+  };
+  document.getElementById('adm-clear-local').onclick = () => {
+    [LS.name, LS.card, LS.ballpay, LS.queue].forEach((k) => localStorage.removeItem(k));
+    state.me = null;
+    status.textContent = 'LOCAL DATA WIPED. YOU ARE NOBODY AGAIN.';
+  };
+  document.getElementById('adm-back').onclick = () => {
+    history.replaceState(null, '', location.pathname);
+    route();
+  };
+}
+
+const isAdminHash = () => ['#reset', '#admin'].includes(location.hash);
+window.addEventListener('hashchange', () => (isAdminHash() ? showAdmin() : route()));
+
 // ================= BOOT =================
 async function route() {
   if (!state.me) return showGate();
@@ -629,6 +728,9 @@ async function route() {
 }
 
 (async function boot() {
+  // The command post works even when the rest of boot would fail —
+  // it's the tool you reach for when the drop state is wedged.
+  if (isAdminHash()) return showAdmin();
   try {
     await syncConfig();
     await refreshStock();
