@@ -174,6 +174,37 @@ a { color: inherit; }
   font-weight: bold; margin: 0 0 12px;
 }
 
+/* red add-to-cart / checkout-now button */
+.addcart {
+  display: inline-block; background: var(--red); color: #fff; border: none;
+  font-family: var(--shop-font); font-weight: bold; font-style: italic;
+  font-size: 12px; text-transform: lowercase; letter-spacing: .02em;
+  padding: 10px 22px; min-width: 140px;
+}
+.addcart:hover { background: var(--red-dark); }
+
+/* ---- Cart page --------------------------------------------------------- */
+.cart-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 0 14px; border-bottom: 1px solid #eee;
+  max-width: 520px;
+}
+.cart-row.gone .ph { opacity: .35; }
+.cart-info { flex: 1; }
+.cart-gone { font-family: var(--courier); font-size: 10px; color: var(--red); font-weight: bold; margin-top: 3px; }
+.cart-price { font-size: 12px; font-weight: bold; }
+.cart-remove {
+  background: none; border: none; font-family: var(--courier); font-size: 10px;
+  color: var(--gray); text-decoration: underline; text-transform: lowercase;
+}
+.cart-remove:hover { color: var(--red); }
+.cart-total {
+  display: flex; justify-content: space-between; max-width: 520px;
+  font-size: 12px; font-weight: bold; padding: 12px 0 18px;
+}
+.cart-empty { font-family: var(--courier); font-size: 12px; color: var(--gray); padding: 12px 0 6px; }
+.pay-lead { font-family: var(--courier); font-size: 11px; margin-bottom: 14px; }
+
 /* payment doors: stacked red add-to-cart buttons + tiny captions */
 .paydoors { display: flex; flex-direction: column; gap: 10px; }
 .paydoor {

@@ -13,8 +13,14 @@ const LS = {
   card: 'supremre_card_fields',
   ballpay: 'supremre_ballpay_done',
   queue: 'supremre_queue_start',
+  cart: 'supremre_cart',
   adminSecret: 'supremre_admin_secret',
 };
+
+// Cart is single-item and purely client-side: nothing is held or reserved.
+// The only lock in the game is still the /claim call at payment completion.
+const getCart = () => Number(localStorage.getItem(LS.cart)) || null;
+const setCart = (id) => (id ? localStorage.setItem(LS.cart, String(id)) : localStorage.removeItem(LS.cart));
 
 const state = {
   me: localStorage.getItem(LS.name) || null,
@@ -60,13 +66,16 @@ function pouchHTML(m, size = '') {
     </div>`;
 }
 
-// Shop chrome: small box logo, tiny lowercase nav. active: 'shop' | 'manifest'
+// Shop chrome: small box logo, tiny lowercase nav.
+// active: 'shop' | 'cart' | 'manifest'
 function pageHeader(active = 'shop') {
+  const n = getCart() ? 1 : 0;
   return `
     <header class="sup-header">
       <div class="boxlogo small">supremRe<span class="tm">™</span></div>
       <nav class="sup-nav">
         <a id="nav-shop" class="${active === 'shop' ? 'active' : ''}">shop</a>
+        <a id="nav-cart" class="${active === 'cart' ? 'active' : ''}">cart${n ? ` (${n})` : ''}</a>
         <a id="nav-manifest" class="${active === 'manifest' ? 'active' : ''}">manifest</a>
         <span class="op">${esc(state.me)}</span>
       </nav>
@@ -75,8 +84,10 @@ function pageHeader(active = 'shop') {
 
 function wireHeader() {
   const shop = document.getElementById('nav-shop');
+  const cart = document.getElementById('nav-cart');
   const manifest = document.getElementById('nav-manifest');
   if (shop) shop.onclick = showGrid;
+  if (cart) cart.onclick = showCart;
   if (manifest) manifest.onclick = showManifest;
 }
 const item = (id) => state.mres.find((m) => m.id === id);
@@ -285,7 +296,7 @@ function renderGrid() {
 
   if (!mine) {
     $app.querySelectorAll('.tile:not(.sold)').forEach((t) => {
-      t.onclick = () => showPaySelect(Number(t.dataset.id));
+      t.onclick = () => showProduct(Number(t.dataset.id));
     });
   }
 }
@@ -303,46 +314,111 @@ function checkoutHeader(m) {
     </div>`;
 }
 
-// Payment select, laid out as a Supreme product page:
-// photo left; name / style / description / price / buy buttons right.
-function showPaySelect(id, notice = '') {
+// Product page, Supreme-style: photo left; name / style / description /
+// price / red add-to-cart button right.
+function showProduct(id) {
   const m = item(id);
   if (!m || m.claimed) return showGrid();
   state.itemId = id;
-  setView('payselect', 'theme-red');
-  const bpDone = localStorage.getItem(LS.ballpay) === '1';
+  setView('product', 'theme-red');
+  const inCart = getCart() === id;
   $app.innerHTML = `
     ${pageHeader('shop')}
     <div class="product">
       ${pouchHTML(m, 'big')}
       <div class="pd">
-        ${notice ? `<div class="pp-loss">${esc(notice)}</div>` : ''}
         <h1 class="pd-name">${esc(m.name)}</h1>
         <p class="pd-style">Menu No. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier}</p>
         <p class="pd-desc">${esc(DESC[m.menu_no] || 'Meal, Ready-to-Eat. Individual. Contents classified.')}</p>
-        <p class="pd-price">$0.00 <small>&mdash; 1 per operative. item is not held while you pay.</small></p>
-        <div class="paydoors">
-          <button class="paydoor" data-pay="ballpay">
-            <span class="pd-buy">ball pay</span>
-            <span class="pd-tag">${bpDone ? 'verification on file. instant.' : 'upload payment verification photo. if you dare.'}</span>
-          </button>
-          <button class="paydoor" data-pay="card">
-            <span class="pd-buy">card</span>
-            <span class="pd-tag">standard secure checkout. thorough. very thorough.</span>
-          </button>
-          <button class="paydoor" data-pay="playpal">
-            <span class="pd-buy">playpal</span>
-            <span class="pd-tag">pay in 1 spin of 1. ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}% approval odds.</span>
-          </button>
-        </div>
+        <p class="pd-price">$0.00 <small>&mdash; 1 per operative. item is not held until payment completes.</small></p>
+        <button id="add-cart" class="addcart">${inCart ? 'in cart — view cart' : 'add to cart'}</button>
         <button class="backlink" id="back">back to shop</button>
       </div>
     </div>`;
   wireHeader();
+  document.getElementById('add-cart').onclick = () => {
+    setCart(id);
+    showCart();
+  };
+  document.getElementById('back').onclick = showGrid;
+}
+
+// Cart: single item, client-side only. Nothing is reserved by carting.
+function showCart() {
+  setView('cart', 'theme-red');
+  const id = getCart();
+  const m = id ? item(id) : null;
+
+  if (!m) {
+    setCart(null);
+    $app.innerHTML = `
+      ${pageHeader('cart')}
+      <p class="cart-empty">your cart is empty.</p>
+      <button class="backlink" id="back">keep shopping</button>`;
+    wireHeader();
+    document.getElementById('back').onclick = showGrid;
+    return;
+  }
+
+  // Carted item got secured by someone else while they hesitated.
+  const gone = m.claimed && m.claimed_by !== state.me;
+  $app.innerHTML = `
+    ${pageHeader('cart')}
+    <div class="cart-row ${gone ? 'gone' : ''}">
+      ${pouchHTML(m, 'thumb')}
+      <div class="cart-info">
+        <div class="ci-name">${esc(m.name)}</div>
+        <div class="ci-meta">menu no. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier}</div>
+        ${gone ? `<div class="cart-gone">sold out &mdash; secured by ${esc(m.claimed_by)}</div>` : ''}
+      </div>
+      <div class="cart-price">$0.00</div>
+      <button class="cart-remove" id="cart-remove">remove</button>
+    </div>
+    <div class="cart-total"><span>subtotal</span><span>$0.00</span></div>
+    ${gone
+      ? `<button id="deploy-another" class="addcart">deploy for another</button>`
+      : `<button id="checkout" class="addcart">checkout now</button>`}
+    <button class="backlink" id="back">keep shopping</button>`;
+  wireHeader();
+  document.getElementById('cart-remove').onclick = () => { setCart(null); showCart(); };
+  document.getElementById('back').onclick = showGrid;
+  const deploy = document.getElementById('deploy-another');
+  if (deploy) deploy.onclick = () => { setCart(null); showGrid(); };
+  const checkout = document.getElementById('checkout');
+  if (checkout) checkout.onclick = () => showCheckout(m.id);
+}
+
+// Checkout: the three payment doors. All theater — each converges on /claim.
+function showCheckout(id, notice = '') {
+  const m = item(id);
+  if (!m || m.claimed) return showCart();
+  state.itemId = id;
+  setView('checkout', 'theme-red');
+  const bpDone = localStorage.getItem(LS.ballpay) === '1';
+  $app.innerHTML = `
+    ${checkoutHeader(m)}
+    ${notice ? `<div class="pp-loss">${esc(notice)}</div>` : ''}
+    <p class="pay-lead">select payment method. item is not held while you pay.</p>
+    <div class="paydoors">
+      <button class="paydoor" data-pay="ballpay">
+        <span class="pd-buy">ball pay</span>
+        <span class="pd-tag">${bpDone ? 'verification on file. instant.' : 'upload payment verification photo. if you dare.'}</span>
+      </button>
+      <button class="paydoor" data-pay="card">
+        <span class="pd-buy">card</span>
+        <span class="pd-tag">standard secure checkout. thorough. very thorough.</span>
+      </button>
+      <button class="paydoor" data-pay="playpal">
+        <span class="pd-buy">playpal</span>
+        <span class="pd-tag">pay in 1 spin of 1. ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}% approval odds.</span>
+      </button>
+    </div>
+    <button class="backlink" id="back">back to cart</button>`;
+  wireHeader();
   $app.querySelector('[data-pay="ballpay"]').onclick = () => showBallPay(id);
   $app.querySelector('[data-pay="card"]').onclick = () => showCardForm(id);
   $app.querySelector('[data-pay="playpal"]').onclick = () => showPlaypal(id);
-  document.getElementById('back').onclick = showGrid;
+  document.getElementById('back').onclick = showCart;
 }
 
 // ================= BALL PAY (courage) =================
@@ -369,7 +445,7 @@ function showBallPay(id) {
     <div id="bp-status" class="notice"></div>
     <button class="backlink" id="back">other payment methods</button>`;
   wireHeader();
-  document.getElementById('back').onclick = () => showPaySelect(id);
+  document.getElementById('back').onclick = () => showCheckout(id);
 
   const verifyAndClaim = () => {
     const st = document.getElementById('bp-status');
@@ -441,7 +517,7 @@ function showCardForm(id) {
     </form>
     <button class="backlink" id="back">other payment methods</button>`;
   wireHeader();
-  document.getElementById('back').onclick = () => showPaySelect(id);
+  document.getElementById('back').onclick = () => showCheckout(id);
 
   const form = document.getElementById('cardform');
   // Persist every keystroke — the one-tap rebound depends on it.
@@ -500,7 +576,7 @@ function showPlaypal(id) {
     </div>
     <button class="backlink" id="back">other payment methods</button>`;
   wireHeader();
-  document.getElementById('back').onclick = () => showPaySelect(id);
+  document.getElementById('back').onclick = () => showCheckout(id);
 
   document.getElementById('spin').onclick = () => {
     const btn = document.getElementById('spin');
@@ -526,7 +602,7 @@ function showPlaypal(id) {
         // A loss burns your lead and bounces you back to payment select.
         reels.forEach((r, i) => { r.textContent = REEL_SYMBOLS[(i * 2 + 1) % REEL_SYMBOLS.length]; });
         document.getElementById('pp-status').textContent = 'INSUFFICIENT LUCK.';
-        setTimeout(() => showPaySelect(id, 'INSUFFICIENT LUCK'), 900);
+        setTimeout(() => showCheckout(id, 'INSUFFICIENT LUCK'), 900);
       }
     }, CFG.PLAYPAL_SPIN_MS);
   };
@@ -534,6 +610,7 @@ function showPlaypal(id) {
 
 // ================= RESULT SCREENS =================
 function renderSecured(it) {
+  setCart(null);
   setView('secured', 'theme-red');
   $app.innerHTML = `
     <div class="fullscreen fs-white">
@@ -562,6 +639,7 @@ function renderTooSlow(mreId, winner) {
 }
 
 function renderAlreadyHave(menuNo) {
+  setCart(null);
   setView('alreadyhave', 'theme-red');
   $app.innerHTML = `
     <div class="fullscreen fs-white">
@@ -705,7 +783,7 @@ async function showAdmin() {
     doReset(Math.round(mins * 60));
   };
   document.getElementById('adm-clear-local').onclick = () => {
-    [LS.name, LS.card, LS.ballpay, LS.queue].forEach((k) => localStorage.removeItem(k));
+    [LS.name, LS.card, LS.ballpay, LS.queue, LS.cart].forEach((k) => localStorage.removeItem(k));
     state.me = null;
     status.textContent = 'LOCAL DATA WIPED. YOU ARE NOBODY AGAIN.';
   };
