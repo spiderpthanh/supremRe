@@ -147,7 +147,7 @@ a { color: inherit; }
 
 .ph.big .pouch { font-size: 16px; width: 72%; }
 .ph.thumb { aspect-ratio: auto; width: 54px; height: 54px; flex: none; }
-.ph.thumb .pouch { font-size: 3.2px; width: 82%; gap: .5em; }
+.ph.thumb .pouch { font-size: 3.2px; width: 72%; gap: .5em; }
 
 /* ---- Product page: image left, details right ----------------------- */
 .product {
@@ -207,7 +207,7 @@ a { color: inherit; }
 }
 .paydoor .pd-buy {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  background: var(--red); color: #fff;
+  background: var(--red); color: #fff; border-radius: 6px;
   font-family: var(--shop-font); font-weight: bold; font-style: italic;
   font-size: 12px; text-transform: lowercase; letter-spacing: .02em;
   padding: 9px 16px; min-width: 130px; text-align: center; flex: none;
@@ -229,10 +229,11 @@ a { color: inherit; }
   background: #ffc439; color: #003087; border-radius: 6px;
   font-size: 15px; text-transform: none; letter-spacing: 0;
   font-family: Verdana, 'Helvetica Neue', Arial, sans-serif;
+  gap: 0; /* one word: the flex gap was splitting "PlayPal" */
 }
 .paydoor:hover .pd-buy.pd-playpal { background: #f0b429; }
 .paydoor .pd-buy.pd-playpal i { font-style: italic; font-weight: bold; color: #003087; }
-.paydoor .pd-buy.pd-playpal b { font-style: italic; font-weight: bold; color: #009cde; margin-left: 1px; }
+.paydoor .pd-buy.pd-playpal b { font-style: italic; font-weight: bold; color: #009cde; }
 .paydoor .pd-tag {
   font-family: var(--courier); font-size: 10px; color: var(--gray);
   text-transform: lowercase;
@@ -462,5 +463,8 @@ input[type="file"] { display: none; }
 @media (max-width: 620px) {
   .grid { grid-template-columns: repeat(2, 1fr); gap: 14px 8px; }
   .product { grid-template-columns: 1fr; gap: 8px; }
-  .ph.big { max-width: 340px; margin: 0 auto; }
+  /* Explicit width matters: auto margins alone cancel the grid stretch and
+     collapse the box to its intrinsic size, clipping the pouch. */
+  .ph.big { width: 100%; max-width: 340px; margin: 0 auto; }
+  .ph.big .pouch { font-size: clamp(12px, 4.4vw, 16px); }
 }

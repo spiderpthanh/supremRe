@@ -458,7 +458,7 @@ function showCheckout(id, notice = '') {
     <p class="pay-lead">select payment method. item is not held while you pay.</p>
     <div class="paydoors">
       <button class="paydoor" data-pay="ballpay">
-        <span class="pd-buy pd-ballpay">${BALLS_SVG}<i>Pay</i></span>
+        <span class="pd-buy pd-ballpay">${BALLS_SVG}<i>BallPay</i></span>
         <span class="pd-tag">${bpDone ? 'verification on file. instant.' : 'photo-verified payment. if you dare.'}</span>
       </button>
       <button class="paydoor" data-pay="card">
@@ -467,7 +467,7 @@ function showCheckout(id, notice = '') {
       </button>
       <button class="paydoor" data-pay="playpal">
         <span class="pd-buy pd-playpal"><i>Play</i><b>Pal</b></span>
-        <span class="pd-tag">win two games of chance. ${Math.round(CFG.PLAYPAL_WIN_RATE * CFG.PLAYPAL_WHEEL_RATE * 100)}% overall approval odds.</span>
+        <span class="pd-tag">play and win two games of chance to check out.</span>
       </button>
     </div>
     <button class="backlink" id="back">back to cart</button>`;
@@ -484,8 +484,9 @@ function showCheckout(id, notice = '') {
 const BP_FINE = `
   <div class="bp-fine">
     photo is processed locally and never leaves your device.<br>
-    note: i trained an image AI model to recognize my friends' balls
-    specifically, and i will be running it on every photo uploaded here.<br>
+    a note from the operator: &ldquo;I trained an image AI model to recognize
+    their balls specifically, and I will be running it on the photos they
+    upload.&rdquo;<br>
     counterfeit balls will be reported to supply command.
   </div>`;
 
@@ -708,9 +709,8 @@ function showPlaypal(id) {
       </div>
       <button id="spin" class="btn btn-red">SPIN</button>
       <div class="pp-fine">
-        win BOTH games to pay. spin: ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}%,
-        wheel: ${Math.round(CFG.PLAYPAL_WHEEL_RATE * 100)}%. no cooldown. no refunds. no financial advice.<br>
-        a loss at either game returns you to payment select. the clock does not stop for you.
+        play and win BOTH games to check out. no refunds. no financial advice.<br>
+        spin as many times as you need. the clock does not stop for you.
       </div>
       <div class="notice" id="pp-status"></div>
     </div>
@@ -741,10 +741,11 @@ function showPlaypal(id) {
         document.getElementById('pp-status').textContent = 'GAME 1 CLEARED. THE WHEEL AWAITS.';
         setTimeout(() => { if (state.view === 'playpal') renderWheel(id); }, 900);
       } else {
-        // A loss burns your lead and bounces you back to payment select.
+        // A loss just burns time — roll again. The clock is the punishment.
         reels.forEach((r, i) => { r.textContent = REEL_SYMBOLS[(i * 2 + 1) % REEL_SYMBOLS.length]; });
-        document.getElementById('pp-status').textContent = 'INSUFFICIENT LUCK.';
-        setTimeout(() => showCheckout(id, 'INSUFFICIENT LUCK'), 900);
+        document.getElementById('pp-status').textContent = 'INSUFFICIENT LUCK. SPIN AGAIN.';
+        btn.textContent = 'SPIN AGAIN';
+        btn.disabled = false;
       }
     }, CFG.PLAYPAL_SPIN_MS);
   };
@@ -768,7 +769,8 @@ function renderWheel(id) {
       </div>
       <button id="wheel-spin" class="btn btn-red">SPIN THE WHEEL</button>
       <div class="pp-fine">
-        even wedge: approved. odd wedge: denied. the wheel is calibrated. the wheel is fair. the wheel is ${Math.round(CFG.PLAYPAL_WHEEL_RATE * 100)}% on your side.
+        even wedge: approved. odd wedge: denied. spin until fate cooperates.<br>
+        the wheel is calibrated. the wheel is fair. the wheel does not hurry.
       </div>
       <div class="notice" id="pp-status"></div>
     </div>
@@ -776,6 +778,8 @@ function renderWheel(id) {
   wireHeader();
   document.getElementById('back').onclick = () => showCheckout(id);
 
+  // Cumulative rotation so retries animate onward instead of snapping back.
+  let rotation = 0;
   document.getElementById('wheel-spin').onclick = () => {
     const btn = document.getElementById('wheel-spin');
     btn.disabled = true;
@@ -785,10 +789,11 @@ function renderWheel(id) {
     // jitter so it never lands on a boundary.
     const wedge = 2 * Math.floor(Math.random() * 4) + (win ? 0 : 1);
     const withinWedge = 8 + Math.random() * 29;
-    const target = 5 * 360 + (360 - (wedge * 45 + withinWedge));
+    const landing = 360 - (wedge * 45 + withinWedge);
+    rotation = (Math.ceil(rotation / 360) + 5) * 360 + landing;
     const wheel = document.getElementById('wheel');
     wheel.style.transition = `transform ${CFG.PLAYPAL_WHEEL_MS}ms cubic-bezier(.17,.67,.16,1)`;
-    wheel.style.transform = `rotate(${target}deg)`;
+    wheel.style.transform = `rotate(${rotation}deg)`;
 
     setTimeout(() => {
       // User may have backed out (browser back) mid-wheel.
@@ -805,8 +810,10 @@ function renderWheel(id) {
         };
         btn.replaceWith(claimBtn);
       } else {
-        document.getElementById('pp-status').textContent = 'THE WHEEL HAS SPOKEN.';
-        setTimeout(() => showCheckout(id, 'INSUFFICIENT LUCK. THE WHEEL HAS SPOKEN.'), 1100);
+        // Denied — but the wheel holds no grudge. Spin again.
+        document.getElementById('pp-status').textContent = 'THE WHEEL HAS SPOKEN. SPIN AGAIN.';
+        btn.textContent = 'SPIN AGAIN';
+        btn.disabled = false;
       }
     }, CFG.PLAYPAL_WHEEL_MS + 200);
   };
