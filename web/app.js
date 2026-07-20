@@ -11,6 +11,7 @@ const $app = document.getElementById('app');
 const LS = {
   name: 'supremre_operative',
   card: 'supremre_card_fields',
+  cardSaved: 'supremre_card_saved',
   ballpay: 'supremre_ballpay_done',
   queue: 'supremre_queue_start',
   cart: 'supremre_cart',
@@ -38,8 +39,6 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }[c]));
 
-const TIER_LABEL = { S: 'S-TIER', A: 'A-TIER', B: 'B-TIER', cursed: 'CURSED' };
-
 // Product-page copy, keyed by menu_no. Terse, catalog-voice, Courier-set.
 const DESC = {
   1: 'The grail. Beef chili with macaroni in a pouch that trades above retail behind every mess tent on earth. Flameless ration heater included. You will not be the only one deploying for this.',
@@ -51,12 +50,21 @@ const DESC = {
   21: 'Vegetarian omelette. The infamous one. Egg-adjacent loaf, feared service-wide. All sales final applies here with unusual force.',
 };
 
+// Original glyph for the Ball Pay button: two circles. That's it. That's the logo.
+const BALLS_SVG = `
+  <svg viewBox="0 0 26 16" width="22" height="14" aria-hidden="true">
+    <circle cx="8" cy="9" r="6.4" fill="currentColor"/>
+    <circle cx="18" cy="9" r="6.4" fill="currentColor"/>
+    <circle cx="6" cy="6.8" r="1.5" fill="#000" opacity=".35"/>
+    <circle cx="16" cy="6.8" r="1.5" fill="#000" opacity=".35"/>
+  </svg>`;
+
 // The CSS-drawn "product photo": a tan MRE pouch on white.
 // size: '' (grid tile) | 'big' (product page) | 'thumb' (checkout row)
 function pouchHTML(m, size = '') {
   return `
     <div class="ph ${size}">
-      <div class="pouch ${m.tier === 'cursed' ? 'cursed' : ''}">
+      <div class="pouch">
         <div class="p-band">U.S. GOVERNMENT PROPERTY</div>
         <div class="p-legal">MEAL, READY-TO-EAT</div>
         <div class="p-menu">MENU NO. ${m.menu_no}</div>
@@ -90,6 +98,49 @@ function wireHeader() {
   if (cart) cart.onclick = showCart;
   if (manifest) manifest.onclick = showManifest;
 }
+
+// ---------------- history router ----------------
+// Still one page, but every view claims a hash route so the browser back
+// button walks the shop → product → cart → checkout stack like people expect.
+let fromPop = false;
+
+function setRoute(hash) {
+  const cur = location.hash;
+  if (cur === hash) return;
+  // First paint on a bare URL: stamp #/shop via replace so the initial entry
+  // carries a real route (otherwise the next push would replace it instead).
+  if (!cur && hash === '#/shop') return history.replaceState(null, '', hash);
+  // popstate navigation must not add history entries.
+  if (fromPop || !cur) history.replaceState(null, '', hash);
+  else history.pushState(null, '', hash);
+}
+
+// Result screens collapse the payment stack: back from them should land on
+// the shop, not replay a spent checkout.
+const routeReplace = (hash) => history.replaceState(null, '', hash);
+
+function routeFromHash() {
+  const h = location.hash;
+  if (!state.me && h !== '#reset' && h !== '#admin') return showGate();
+  if (h === '#reset' || h === '#admin') return showAdmin();
+  const p = h.replace(/^#\/?/, '').split('/');
+  switch (p[0]) {
+    case 'product':  return showProduct(Number(p[1]));
+    case 'cart':     return showCart();
+    case 'checkout': return showCheckout(Number(p[1]));
+    case 'pay': {
+      const pay = { ballpay: showBallPay, card: showCardForm, playpal: showPlaypal }[p[1]];
+      return pay ? pay(Number(p[2])) : route();
+    }
+    case 'manifest': return showManifest();
+    default:         return route();
+  }
+}
+
+window.addEventListener('popstate', () => {
+  fromPop = true;
+  try { routeFromHash(); } finally { fromPop = false; }
+});
 const item = (id) => state.mres.find((m) => m.id === id);
 const myClaim = () => state.mres.find((m) => m.claimed_by === state.me);
 const allClaimed = () => state.mres.length > 0 && state.mres.every((m) => m.claimed);
@@ -165,6 +216,7 @@ function setView(name, bodyTheme) {
 
 // ================= GATE (pick your name) =================
 function showGate(msg = '') {
+  setRoute('#/shop');
   setView('gate', 'theme-drab');
   $app.innerHTML = `
     <div class="briefing">
@@ -215,6 +267,7 @@ function fmtClock(ms) {
 }
 
 function showCountdown() {
+  setRoute('#/shop');
   setView('countdown', 'theme-drab');
   $app.innerHTML = `
     <div class="briefing">
@@ -267,6 +320,7 @@ function goLive() {
 
 // ================= DROP GRID =================
 function showGrid() {
+  setRoute('#/shop');
   setView('grid', 'theme-red');
   startPolling();
   renderGrid();
@@ -309,7 +363,7 @@ function checkoutHeader(m) {
       ${pouchHTML(m, 'thumb')}
       <div>
         <div class="ci-name">${esc(m.name)}</div>
-        <div class="ci-meta">menu no. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier} / nsn ${esc(m.nsn)}</div>
+        <div class="ci-meta">menu no. ${m.menu_no} / nsn ${esc(m.nsn)}</div>
       </div>
     </div>`;
 }
@@ -320,6 +374,7 @@ function showProduct(id) {
   const m = item(id);
   if (!m || m.claimed) return showGrid();
   state.itemId = id;
+  setRoute(`#/product/${id}`);
   setView('product', 'theme-red');
   const inCart = getCart() === id;
   $app.innerHTML = `
@@ -328,7 +383,7 @@ function showProduct(id) {
       ${pouchHTML(m, 'big')}
       <div class="pd">
         <h1 class="pd-name">${esc(m.name)}</h1>
-        <p class="pd-style">Menu No. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier}</p>
+        <p class="pd-style">Menu No. ${m.menu_no} / Meal, Ready-to-Eat, Individual</p>
         <p class="pd-desc">${esc(DESC[m.menu_no] || 'Meal, Ready-to-Eat. Individual. Contents classified.')}</p>
         <p class="pd-price">$0.00 <small>&mdash; 1 per operative. item is not held until payment completes.</small></p>
         <button id="add-cart" class="addcart">${inCart ? 'in cart — view cart' : 'add to cart'}</button>
@@ -345,6 +400,7 @@ function showProduct(id) {
 
 // Cart: single item, client-side only. Nothing is reserved by carting.
 function showCart() {
+  setRoute('#/cart');
   setView('cart', 'theme-red');
   const id = getCart();
   const m = id ? item(id) : null;
@@ -368,7 +424,7 @@ function showCart() {
       ${pouchHTML(m, 'thumb')}
       <div class="cart-info">
         <div class="ci-name">${esc(m.name)}</div>
-        <div class="ci-meta">menu no. ${m.menu_no} / ${TIER_LABEL[m.tier] ?? m.tier}</div>
+        <div class="ci-meta">menu no. ${m.menu_no}</div>
         ${gone ? `<div class="cart-gone">sold out &mdash; secured by ${esc(m.claimed_by)}</div>` : ''}
       </div>
       <div class="cart-price">$0.00</div>
@@ -393,6 +449,7 @@ function showCheckout(id, notice = '') {
   const m = item(id);
   if (!m || m.claimed) return showCart();
   state.itemId = id;
+  setRoute(`#/checkout/${id}`);
   setView('checkout', 'theme-red');
   const bpDone = localStorage.getItem(LS.ballpay) === '1';
   $app.innerHTML = `
@@ -401,16 +458,16 @@ function showCheckout(id, notice = '') {
     <p class="pay-lead">select payment method. item is not held while you pay.</p>
     <div class="paydoors">
       <button class="paydoor" data-pay="ballpay">
-        <span class="pd-buy">ball pay</span>
-        <span class="pd-tag">${bpDone ? 'verification on file. instant.' : 'upload payment verification photo. if you dare.'}</span>
+        <span class="pd-buy pd-ballpay">${BALLS_SVG}<i>Pay</i></span>
+        <span class="pd-tag">${bpDone ? 'verification on file. instant.' : 'photo-verified payment. if you dare.'}</span>
       </button>
       <button class="paydoor" data-pay="card">
         <span class="pd-buy">card</span>
         <span class="pd-tag">standard secure checkout. thorough. very thorough.</span>
       </button>
       <button class="paydoor" data-pay="playpal">
-        <span class="pd-buy">playpal</span>
-        <span class="pd-tag">pay in 1 spin of 1. ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}% approval odds.</span>
+        <span class="pd-buy pd-playpal"><i>Play</i><b>Pal</b></span>
+        <span class="pd-tag">win two games of chance. ${Math.round(CFG.PLAYPAL_WIN_RATE * CFG.PLAYPAL_WHEEL_RATE * 100)}% overall approval odds.</span>
       </button>
     </div>
     <button class="backlink" id="back">back to cart</button>`;
@@ -422,51 +479,95 @@ function showCheckout(id, notice = '') {
 }
 
 // ================= BALL PAY (courage) =================
+// Three steps: upload proof -> fake analysis -> pay now. The "verification on
+// file" flag skips straight to pay now on later attempts.
+const BP_FINE = `
+  <div class="bp-fine">
+    photo is processed locally and never leaves your device.<br>
+    note: i trained an image AI model to recognize my friends' balls
+    specifically, and i will be running it on every photo uploaded here.<br>
+    counterfeit balls will be reported to supply command.
+  </div>`;
+
 function showBallPay(id) {
   const m = item(id);
+  if (!m) return showGrid();
+  setRoute(`#/pay/ballpay/${id}`);
   setView('ballpay', 'theme-red');
   const bpDone = localStorage.getItem(LS.ballpay) === '1';
-  $app.innerHTML = `
+
+  const shell = (inner) => `
     ${checkoutHeader(m)}
     <div class="ballpay-drop">
       <div class="bp-big">BALL PAY&trade; PAYMENT VERIFICATION</div>
-      ${bpDone
-        ? `<p>Verification photo already on file.</p>
-           <button id="bp-go" class="btn btn-red">pay with ball pay</button>`
-        : `<p>Upload payment verification photo to proceed.</p>
-           <label class="filelabel" for="bp-file">upload photo</label>
-           <input type="file" id="bp-file" accept="image/*">`}
-      <div class="bp-fine">
-        photo is processed locally and never leaves your device.<br>
-        what the photo must depict is left to operative discretion.<br>
-        you know what it wants. do you have what it takes?
-      </div>
+      ${inner}
     </div>
     <div id="bp-status" class="notice"></div>
     <button class="backlink" id="back">other payment methods</button>`;
-  wireHeader();
-  document.getElementById('back').onclick = () => showCheckout(id);
 
-  const verifyAndClaim = () => {
-    const st = document.getElementById('bp-status');
-    st.textContent = 'VERIFYING SUBJECT MATTER...';
-    setTimeout(() => {
-      localStorage.setItem(LS.ballpay, '1');
-      st.textContent = 'VERIFIED. RESPECT. FIRING CLAIM...';
+  const wire = () => {
+    wireHeader();
+    document.getElementById('back').onclick = () => showCheckout(id);
+  };
+
+  // Step 3: verified (now or previously) — one button between you and the claim.
+  const renderPayStep = (fresh) => {
+    if (state.view !== 'ballpay') return;
+    $app.innerHTML = shell(`
+      <p class="bp-success">${fresh ? 'success! balls verified.' : 'balls verification on file.'}</p>
+      <p>payment method armed.</p>
+      <button id="bp-go" class="btn btn-red">pay now</button>
+      ${BP_FINE}`);
+    wire();
+    document.getElementById('bp-go').onclick = () => {
+      document.getElementById('bp-status').textContent = 'PROCESSING PAYMENT...';
       fireClaim(id);
+    };
+  };
+
+  // Step 2: the "analysis". Lines appear over BALLPAY_VERIFY_MS, then success.
+  const renderAnalysis = () => {
+    $app.innerHTML = shell(`
+      <p>ANALYZING PROOF OF PAYMENT...</p>
+      <div class="bp-scan" id="bp-scan"></div>
+      ${BP_FINE}`);
+    wire();
+    const lines = [
+      'ISOLATING SUBJECT...',
+      'SUBJECT DETECTED.',
+      'COMPARING AGAINST KNOWN FRIENDS...',
+      'MATCH CONFIDENCE: 99.1%',
+    ];
+    const scan = document.getElementById('bp-scan');
+    const stepMs = CFG.BALLPAY_VERIFY_MS / (lines.length + 1);
+    lines.forEach((line, i) => {
+      setTimeout(() => {
+        if (state.view !== 'ballpay' || !document.getElementById('bp-scan')) return;
+        scan.innerHTML += `<div>${line}</div>`;
+      }, stepMs * (i + 1));
+    });
+    setTimeout(() => {
+      // User may have backed out (browser back) mid-analysis.
+      if (state.view !== 'ballpay') return;
+      localStorage.setItem(LS.ballpay, '1');
+      renderPayStep(true);
     }, CFG.BALLPAY_VERIFY_MS);
   };
 
-  if (bpDone) {
-    document.getElementById('bp-go').onclick = () => {
-      document.getElementById('bp-status').textContent = 'FIRING CLAIM...';
-      fireClaim(id);
-    };
-  } else {
+  // Step 1: upload. What the photo must depict is now stated explicitly.
+  const renderUploadStep = () => {
+    $app.innerHTML = shell(`
+      <p class="bp-instruction">upload a photo of your balls.<br>this is the payment.</p>
+      <label class="filelabel" for="bp-file">upload proof of payment</label>
+      <input type="file" id="bp-file" accept="image/*">
+      ${BP_FINE}`);
+    wire();
     document.getElementById('bp-file').onchange = (e) => {
-      if (e.target.files.length > 0) verifyAndClaim();
+      if (e.target.files.length > 0) renderAnalysis();
     };
-  }
+  };
+
+  bpDone ? renderPayStep(false) : renderUploadStep();
 }
 
 // ================= CARD FORM (patience) =================
@@ -498,9 +599,45 @@ const CARD_FIELDS = [
 
 const loadCard = () => { try { return JSON.parse(localStorage.getItem(LS.card)) || {}; } catch { return {}; } };
 
+// Saved-card summary panel + "pay now". Reached after "save card info", or
+// immediately on later visits (the rebound path).
+function renderSavedCard(id) {
+  const m = item(id);
+  const c = loadCard();
+  const last4 = (c.phone || '').slice(-4) || '0000';
+  $app.innerHTML = `
+    ${checkoutHeader(m)}
+    <div class="savedcard">
+      <div class="sc-panel">
+        <div class="sc-label">card on file</div>
+        <div class="sc-name">${esc((c.legal_name || 'OPERATIVE').toUpperCase())}</div>
+        <div class="sc-num">operative card &bull;&bull;&bull;&bull; ${esc(last4)}</div>
+        <div class="sc-meta">teeth on record: ${esc(c.teeth || '?')} &middot; hydration: ${esc(c.water || 'unknown')}</div>
+      </div>
+      <button id="card-pay" class="btn btn-red">pay now</button>
+      <button class="backlink" id="card-edit">edit info</button>
+    </div>
+    <div class="notice" id="cf-status"></div>
+    <button class="backlink" id="back">other payment methods</button>`;
+  wireHeader();
+  document.getElementById('back').onclick = () => showCheckout(id);
+  document.getElementById('card-edit').onclick = () => {
+    localStorage.removeItem(LS.cardSaved);
+    showCardForm(id);
+  };
+  document.getElementById('card-pay').onclick = () => {
+    document.getElementById('cf-status').textContent = 'CHARGING CARD...';
+    fireClaim(id);
+  };
+}
+
 function showCardForm(id) {
   const m = item(id);
+  if (!m) return showGrid();
+  setRoute(`#/pay/card/${id}`);
   setView('card', 'theme-red');
+  // Card already saved -> straight to the pay-now panel (fast rebound).
+  if (localStorage.getItem(LS.cardSaved) === '1') return renderSavedCard(id);
   const saved = loadCard();
   $app.innerHTML = `
     ${checkoutHeader(m)}
@@ -512,7 +649,7 @@ function showCardForm(id) {
           <div class="hint">${f.hint}</div>
           <div class="err" id="err-${f.key}"></div>
         </div>`).join('')}
-      <button type="submit" class="btn btn-red btn-block">SUBMIT SECURE PAYMENT</button>
+      <button type="submit" class="btn btn-red btn-block">save card info</button>
       <div class="notice" id="cf-status"></div>
     </form>
     <button class="backlink" id="back">other payment methods</button>`;
@@ -547,8 +684,8 @@ function showCardForm(id) {
       firstBad.focus();
       return;
     }
-    document.getElementById('cf-status').textContent = 'PAYMENT ACCEPTED. FIRING CLAIM...';
-    fireClaim(id);
+    localStorage.setItem(LS.cardSaved, '1');
+    renderSavedCard(id);
   };
 }
 
@@ -557,11 +694,13 @@ const REEL_SYMBOLS = ['★', '⚙', '✚', '❀', '⚡', '♟'];
 
 function showPlaypal(id) {
   const m = item(id);
+  if (!m) return showGrid();
+  setRoute(`#/pay/playpal/${id}`);
   setView('playpal', 'theme-red');
   $app.innerHTML = `
     ${checkoutHeader(m)}
     <div class="playpal">
-      <div class="pp-title">Playpal&trade; &mdash; pay in 1 spin of 1</div>
+      <div class="pp-title">Playpal&trade; &mdash; game 1 of 2: the spin</div>
       <div class="reels">
         <div class="reel" id="r0">?</div>
         <div class="reel" id="r1">?</div>
@@ -569,8 +708,9 @@ function showPlaypal(id) {
       </div>
       <button id="spin" class="btn btn-red">SPIN</button>
       <div class="pp-fine">
-        approval odds: ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}%. no cooldown. no refunds. no financial advice.<br>
-        a loss returns you to payment select. the clock does not stop for you.
+        win BOTH games to pay. spin: ${Math.round(CFG.PLAYPAL_WIN_RATE * 100)}%,
+        wheel: ${Math.round(CFG.PLAYPAL_WHEEL_RATE * 100)}%. no cooldown. no refunds. no financial advice.<br>
+        a loss at either game returns you to payment select. the clock does not stop for you.
       </div>
       <div class="notice" id="pp-status"></div>
     </div>
@@ -593,11 +733,13 @@ function showPlaypal(id) {
     const win = Math.random() < CFG.PLAYPAL_WIN_RATE;
     setTimeout(() => {
       clearInterval(anim);
+      // User may have backed out (browser back) mid-spin.
+      if (state.view !== 'playpal') return;
       reels.forEach((r) => r.classList.remove('spinning'));
       if (win) {
         reels.forEach((r) => { r.textContent = '★'; });
-        document.getElementById('pp-status').textContent = 'LUCK VERIFIED. FIRING CLAIM...';
-        fireClaim(id);
+        document.getElementById('pp-status').textContent = 'GAME 1 CLEARED. THE WHEEL AWAITS.';
+        setTimeout(() => { if (state.view === 'playpal') renderWheel(id); }, 900);
       } else {
         // A loss burns your lead and bounces you back to payment select.
         reels.forEach((r, i) => { r.textContent = REEL_SYMBOLS[(i * 2 + 1) % REEL_SYMBOLS.length]; });
@@ -608,8 +750,71 @@ function showPlaypal(id) {
   };
 }
 
+// Game 2: the Wheel of Rations. 8 wedges, alternating WIN/LOSE visually;
+// the outcome comes from PLAYPAL_WHEEL_RATE and the wheel lands to match.
+function renderWheel(id) {
+  const m = item(id);
+  $app.innerHTML = `
+    ${checkoutHeader(m)}
+    <div class="playpal">
+      <div class="pp-title">Playpal&trade; &mdash; game 2 of 2: the wheel of rations</div>
+      <div class="wheel-rig">
+        <div class="wheel-pointer">&#9660;</div>
+        <div class="wheel" id="wheel">
+          ${Array.from({ length: 8 }, (_, i) =>
+            `<span class="wedge-label" style="transform:rotate(${i * 45 + 22.5}deg) translateY(-58px)">${i % 2 === 0 ? 'PAY' : 'NO'}</span>`
+          ).join('')}
+        </div>
+      </div>
+      <button id="wheel-spin" class="btn btn-red">SPIN THE WHEEL</button>
+      <div class="pp-fine">
+        even wedge: approved. odd wedge: denied. the wheel is calibrated. the wheel is fair. the wheel is ${Math.round(CFG.PLAYPAL_WHEEL_RATE * 100)}% on your side.
+      </div>
+      <div class="notice" id="pp-status"></div>
+    </div>
+    <button class="backlink" id="back">other payment methods</button>`;
+  wireHeader();
+  document.getElementById('back').onclick = () => showCheckout(id);
+
+  document.getElementById('wheel-spin').onclick = () => {
+    const btn = document.getElementById('wheel-spin');
+    btn.disabled = true;
+    const win = Math.random() < CFG.PLAYPAL_WHEEL_RATE;
+    // Land the pointer inside a wedge matching the outcome: wedge k spans
+    // [k*45, k*45+45); pick an even wedge for a win, odd for a loss, plus
+    // jitter so it never lands on a boundary.
+    const wedge = 2 * Math.floor(Math.random() * 4) + (win ? 0 : 1);
+    const withinWedge = 8 + Math.random() * 29;
+    const target = 5 * 360 + (360 - (wedge * 45 + withinWedge));
+    const wheel = document.getElementById('wheel');
+    wheel.style.transition = `transform ${CFG.PLAYPAL_WHEEL_MS}ms cubic-bezier(.17,.67,.16,1)`;
+    wheel.style.transform = `rotate(${target}deg)`;
+
+    setTimeout(() => {
+      // User may have backed out (browser back) mid-wheel.
+      if (state.view !== 'playpal') return;
+      if (win) {
+        document.getElementById('pp-status').textContent = 'BOTH GAMES CLEARED.';
+        const claimBtn = document.createElement('button');
+        claimBtn.id = 'claim-winnings';
+        claimBtn.className = 'btn btn-red';
+        claimBtn.textContent = 'claim winnings';
+        claimBtn.onclick = () => {
+          document.getElementById('pp-status').textContent = 'TRANSFERRING WINNINGS...';
+          fireClaim(id);
+        };
+        btn.replaceWith(claimBtn);
+      } else {
+        document.getElementById('pp-status').textContent = 'THE WHEEL HAS SPOKEN.';
+        setTimeout(() => showCheckout(id, 'INSUFFICIENT LUCK. THE WHEEL HAS SPOKEN.'), 1100);
+      }
+    }, CFG.PLAYPAL_WHEEL_MS + 200);
+  };
+}
+
 // ================= RESULT SCREENS =================
 function renderSecured(it) {
+  routeReplace('#/shop');
   setCart(null);
   setView('secured', 'theme-red');
   $app.innerHTML = `
@@ -625,6 +830,7 @@ function renderSecured(it) {
 
 // The group-chat moment. Must be fast to leave.
 function renderTooSlow(mreId, winner) {
+  routeReplace('#/shop');
   const m = item(mreId);
   setView('tooslow', 'theme-red');
   $app.innerHTML = `
@@ -639,6 +845,7 @@ function renderTooSlow(mreId, winner) {
 }
 
 function renderAlreadyHave(menuNo) {
+  routeReplace('#/shop');
   setCart(null);
   setView('alreadyhave', 'theme-red');
   $app.innerHTML = `
@@ -652,6 +859,7 @@ function renderAlreadyHave(menuNo) {
 }
 
 function renderTransmissionLost(mreId) {
+  routeReplace('#/shop');
   setView('neterror', 'theme-red');
   $app.innerHTML = `
     <div class="fullscreen fs-drab">
@@ -673,21 +881,21 @@ const CONDOLENCES = [
 ];
 
 async function showManifest() {
+  setRoute('#/manifest');
   setView('manifest', 'theme-red');
   let data;
   try { data = await apiGet('/manifest'); } catch { return showGrid(); }
 
   const rows = data.claimed.map((r) => `
-    <div class="m-row ${r.tier === 'cursed' ? 'cursed-row' : ''}">
+    <div class="m-row">
       <div class="m-op">${esc(r.claimed_by)}</div>
       <div class="m-item">
         <div class="nm">${esc(r.name)}</div>
         <div class="mn">MENU NO. ${r.menu_no} · NSN ${esc(r.nsn)}</div>
       </div>
-      <span class="tierbadge tier-${r.tier}">${TIER_LABEL[r.tier] ?? r.tier}</span>
     </div>`).join('');
 
-  const cursed = data.claimed.find((r) => r.tier === 'cursed');
+  const cursed = data.claimed.find((r) => /omelette/i.test(r.name));
   const condolence = cursed
     ? `<div class="condolence">${CONDOLENCES[cursed.menu_no % CONDOLENCES.length]} ${esc(cursed.claimed_by)}.</div>`
     : '';
@@ -710,6 +918,7 @@ async function showManifest() {
 
 // ================= COMMAND POST (dev reset, #reset in the URL) =================
 async function showAdmin() {
+  setRoute('#reset');
   setView('admin', 'theme-drab');
   const savedSecret = localStorage.getItem(LS.adminSecret) || '';
   $app.innerHTML = `
@@ -783,7 +992,7 @@ async function showAdmin() {
     doReset(Math.round(mins * 60));
   };
   document.getElementById('adm-clear-local').onclick = () => {
-    [LS.name, LS.card, LS.ballpay, LS.queue, LS.cart].forEach((k) => localStorage.removeItem(k));
+    [LS.name, LS.card, LS.cardSaved, LS.ballpay, LS.queue, LS.cart].forEach((k) => localStorage.removeItem(k));
     state.me = null;
     status.textContent = 'LOCAL DATA WIPED. YOU ARE NOBODY AGAIN.';
   };
@@ -794,7 +1003,6 @@ async function showAdmin() {
 }
 
 const isAdminHash = () => ['#reset', '#admin'].includes(location.hash);
-window.addEventListener('hashchange', () => (isAdminHash() ? showAdmin() : route()));
 
 // ================= BOOT =================
 async function route() {
@@ -821,5 +1029,5 @@ async function route() {
       </div>`;
     return;
   }
-  route();
+  routeFromHash();
 })();

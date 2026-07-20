@@ -19,11 +19,13 @@ export async function initDb() {
       menu_no     INT NOT NULL,
       name        TEXT NOT NULL,
       nsn         TEXT NOT NULL,
-      tier        TEXT NOT NULL,
       claimed_by  TEXT,
       claimed_at  TIMESTAMPTZ
     );
   `);
+
+  // Migration: the tier system was removed — people decide what they want.
+  await pool.query('ALTER TABLE mres DROP COLUMN IF EXISTS tier;');
 
   // ONE meal per person, enforced by the database. Never check-then-write in app code.
   await pool.query(`
@@ -56,8 +58,8 @@ async function seedItems() {
   if (rows[0].n > 0) return;
   for (const it of ITEMS) {
     await pool.query(
-      'INSERT INTO mres (menu_no, name, nsn, tier) VALUES ($1, $2, $3, $4)',
-      [it.menu_no, it.name, it.nsn, it.tier]
+      'INSERT INTO mres (menu_no, name, nsn) VALUES ($1, $2, $3)',
+      [it.menu_no, it.name, it.nsn]
     );
   }
 }

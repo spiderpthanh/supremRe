@@ -27,7 +27,7 @@ app.get('/config', async (_req, res) => {
 // ---- GET /mres — full stock status. Polled ~1.5s by every client. ----------
 app.get('/mres', async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, menu_no, name, nsn, tier,
+    `SELECT id, menu_no, name, nsn,
             claimed_by IS NOT NULL AS claimed,
             claimed_by
        FROM mres
@@ -58,7 +58,7 @@ app.post('/claim', async (req, res) => {
       `UPDATE mres
           SET claimed_by = $1, claimed_at = now()
         WHERE id = $2 AND claimed_by IS NULL
-        RETURNING id, menu_no, name, nsn, tier, claimed_by, claimed_at`,
+        RETURNING id, menu_no, name, nsn, claimed_by, claimed_at`,
       [userName, mreId]
     );
 
@@ -89,7 +89,7 @@ app.post('/claim', async (req, res) => {
 // ---- GET /manifest — post-drop results screen -------------------------------
 app.get('/manifest', async (_req, res) => {
   const { rows } = await pool.query(
-    `SELECT menu_no, name, nsn, tier, claimed_by, claimed_at
+    `SELECT menu_no, name, nsn, claimed_by, claimed_at
        FROM mres
       WHERE claimed_by IS NOT NULL
       ORDER BY claimed_at`

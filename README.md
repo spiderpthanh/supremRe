@@ -4,6 +4,10 @@ A Supreme-style timed drop that distributes 7 physical MREs among 7 friends.
 First-come-first-serve, one meal per person, payment methods are joke gauntlets,
 ends in a shareable manifest.
 
+It's a single-page app, but every screen claims a hash route (`#/product/3`,
+`#/cart`, `#/checkout/3`, …) so the browser back button walks the
+shop → product → cart → checkout stack the way people expect.
+
 ## Core principle
 
 The three payment methods (**Ball Pay**, **Card**, **Playpal**) are pure frontend
@@ -35,7 +39,7 @@ web/   Static no-build SPA     → deploy to Cloudflare Pages
 | GET    | `/config`   | `drop_time` + server clock (countdown sync) |
 | GET    | `/mres`     | Full stock status — polled every ~1.5s |
 | POST   | `/claim`    | **The only mutating endpoint.** `{ mre_id, user }` → 200 win, 409 `taken`/`already_have`, 403 `not_live` |
-| GET    | `/manifest` | Claimed items + who + tier, for the results screen |
+| GET    | `/manifest` | Claimed items + who, for the results screen |
 | POST   | `/reset`    | Dev tool. `{ secret, drop_in_seconds? }` clears claims and optionally reschedules the drop |
 
 ## Run locally
@@ -96,15 +100,15 @@ API_URL=http://localhost:3000 npm run race-test
 
 ## Config knobs (friction is tuned by iteration)
 
-- `api/src/items.js` — the item list: names, tiers (2×S / 2×A / 2×B / 1×cursed), fake NSNs
+- `api/src/items.js` — the item list: names and fake NSNs (no tiers; people decide what they want)
 - `DROP_TIME` env or `POST /reset { drop_in_seconds }` — go-live time
-- `web/config.js` — `PLAYPAL_WIN_RATE` (0.70), `PLAYPAL_SPIN_MS` (1500), poll rate, fake queue size
+- `web/config.js` — `PLAYPAL_WIN_RATE` (0.40), `PLAYPAL_WHEEL_RATE` (0.75), spin/wheel/verify durations, poll rate, fake queue size
 - `CARD_FIELDS` in `web/app.js` — add/remove/reorder the card-form gauntlet freely
 
 ## The three doors
 
 | Door | Axis | Deal |
 | ---- | ---- | ---- |
-| Ball Pay | courage | Upload "payment verification photo." Any photo passes. Remembered forever — later checkouts are one tap. |
-| Card | patience | 10-field escalating form, format-checked speed bumps, reading-required traps. Every field persists to localStorage as typed. |
-| Playpal | luck | One spin, ~70% win. Fastest path in the game when it hits; a loss burns your lead and bounces you to payment select. |
+| Ball Pay | courage | Three steps: "upload proof of payment" (the site is explicit about what the photo must show), a fake AI analysis screen, then "pay now." Any photo passes. Verification is remembered forever — later checkouts skip straight to pay now. |
+| Card | patience | 10-field escalating form, format-checked speed bumps, reading-required traps. "Save card info" first, then pay with the card on file. Every field persists to localStorage as typed. |
+| Playpal | luck | Two games, must win BOTH: slot spin (40%) then the Wheel of Rations (75%) — ~30% overall. Winners still have to press "claim winnings." A loss at either game burns your lead and bounces you to payment select. |

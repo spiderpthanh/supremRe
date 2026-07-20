@@ -139,17 +139,11 @@ a { color: inherit; }
       transparent 2px, transparent 6px);
   border-bottom: 1px dashed rgba(0,0,0,.28);
 }
-.pouch::after {
-  content: '\25C0 TEAR'; position: absolute; top: 2.5%; right: 4%;
-  font-size: .55em; letter-spacing: .1em; opacity: .55;
-  font-family: var(--shop-font); font-weight: bold;
-}
 .pouch .p-band { font-size: .6em; letter-spacing: .06em; opacity: .75; font-family: var(--shop-font); font-weight: bold; }
 .pouch .p-legal { font-size: .78em; letter-spacing: .12em; }
 .pouch .p-menu { font-size: .95em; }
 .pouch .mre-name { font-size: 1.25em; text-transform: uppercase; }
 .pouch .p-nsn { font-family: var(--courier); font-size: .72em; font-weight: bold; opacity: .8; }
-.pouch.cursed { background: #a9a382; }
 
 .ph.big .pouch { font-size: 16px; width: 72%; }
 .ph.thumb { aspect-ratio: auto; width: 54px; height: 54px; flex: none; }
@@ -212,12 +206,33 @@ a { color: inherit; }
   background: none; border: none; padding: 0; text-align: left;
 }
 .paydoor .pd-buy {
-  display: inline-block; background: var(--red); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: var(--red); color: #fff;
   font-family: var(--shop-font); font-weight: bold; font-style: italic;
   font-size: 12px; text-transform: lowercase; letter-spacing: .02em;
-  padding: 9px 16px; min-width: 96px; text-align: center; flex: none;
+  padding: 9px 16px; min-width: 130px; text-align: center; flex: none;
 }
 .paydoor:hover .pd-buy { background: var(--red-dark); }
+
+/* Ball Pay door: wallet-button convention — black pill, glyph + "Pay" */
+.paydoor .pd-buy.pd-ballpay {
+  background: #000; color: #fff; border-radius: 6px;
+  font-style: normal; font-weight: 600; font-size: 14px; text-transform: none;
+  font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}
+.paydoor:hover .pd-buy.pd-ballpay { background: #1c1c1c; }
+.paydoor .pd-buy.pd-ballpay svg { display: block; }
+.paydoor .pd-buy.pd-ballpay i { font-style: normal; }
+
+/* Playpal door: checkout-wallet convention — gold pill, two-tone italic wordmark */
+.paydoor .pd-buy.pd-playpal {
+  background: #ffc439; color: #003087; border-radius: 6px;
+  font-size: 15px; text-transform: none; letter-spacing: 0;
+  font-family: Verdana, 'Helvetica Neue', Arial, sans-serif;
+}
+.paydoor:hover .pd-buy.pd-playpal { background: #f0b429; }
+.paydoor .pd-buy.pd-playpal i { font-style: italic; font-weight: bold; color: #003087; }
+.paydoor .pd-buy.pd-playpal b { font-style: italic; font-weight: bold; color: #009cde; margin-left: 1px; }
 .paydoor .pd-tag {
   font-family: var(--courier); font-size: 10px; color: var(--gray);
   text-transform: lowercase;
@@ -269,6 +284,33 @@ a { color: inherit; }
 .filelabel:hover { background: var(--red-dark); }
 input[type="file"] { display: none; }
 
+.ballpay-drop .bp-instruction {
+  font-family: var(--courier); font-size: 13px; font-weight: bold;
+  line-height: 1.7; margin: 10px 0 16px;
+}
+.ballpay-drop .bp-success {
+  font-family: var(--courier); font-size: 13px; font-weight: bold;
+  color: #1a7a2e; margin: 10px 0 4px;
+}
+.bp-scan {
+  font-family: var(--courier); font-size: 11px; text-align: left;
+  max-width: 280px; margin: 12px auto; min-height: 76px; color: var(--ink);
+}
+.bp-scan div { animation: scanline .3s ease; }
+@keyframes scanline { from { opacity: 0; } to { opacity: 1; } }
+
+/* saved-card panel (card on file -> pay now) */
+.savedcard { max-width: 460px; }
+.sc-panel {
+  border: 1px solid var(--ink); padding: 16px 18px; margin-bottom: 16px;
+  background: linear-gradient(135deg, #f8f8f8, #ececec);
+}
+.sc-panel .sc-label { font-family: var(--courier); font-size: 10px; color: var(--gray); text-transform: uppercase; letter-spacing: .15em; }
+.sc-panel .sc-name { font-weight: bold; font-size: 14px; margin: 8px 0 2px; }
+.sc-panel .sc-num { font-family: var(--courier); font-size: 12px; margin-bottom: 8px; }
+.sc-panel .sc-meta { font-family: var(--courier); font-size: 10px; color: var(--gray); }
+.savedcard .backlink { margin-left: 12px; }
+
 /* ---- Card form: Supreme-checkout plain --------------------------------- */
 .cardform { margin-top: 4px; max-width: 460px; }
 .cardform .field { margin-bottom: 14px; }
@@ -309,6 +351,30 @@ input[type="file"] { display: none; }
   font-family: var(--courier); font-size: 10px; color: var(--gray);
   margin-top: 12px; line-height: 1.7;
 }
+
+/* game 2: the wheel of rations */
+.wheel-rig { position: relative; width: 180px; margin: 20px 0 14px; }
+.wheel-pointer {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  color: var(--ink); font-size: 18px; z-index: 2;
+}
+.wheel {
+  width: 180px; height: 180px; border-radius: 50%;
+  border: 3px solid var(--ink); position: relative;
+  background: conic-gradient(
+    var(--red) 0deg 45deg,        #f2f2f2 45deg 90deg,
+    var(--red) 90deg 135deg,      #f2f2f2 135deg 180deg,
+    var(--red) 180deg 225deg,     #f2f2f2 225deg 270deg,
+    var(--red) 270deg 315deg,     #f2f2f2 315deg 360deg);
+  box-shadow: inset 0 0 0 4px rgba(255,255,255,.5), 2px 3px 8px rgba(0,0,0,.2);
+}
+.wheel .wedge-label {
+  position: absolute; top: 50%; left: 50%;
+  margin: -8px 0 0 -14px; width: 28px; text-align: center;
+  font-family: var(--stencil-font); font-size: 10px;
+}
+.wheel .wedge-label:nth-child(odd) { color: #fff; }   /* PAY wedges (red) */
+.wheel .wedge-label:nth-child(even) { color: var(--ink); } /* NO wedges */
 
 .notice { font-family: var(--courier); font-size: 11px; color: var(--red); margin-top: 10px; min-height: 1.2em; }
 
@@ -387,12 +453,6 @@ input[type="file"] { display: none; }
 .m-row .m-item { flex: 2; }
 .m-row .m-item .nm { font-weight: 900; font-style: italic; text-transform: uppercase; font-family: var(--logo-font); }
 .m-row .m-item .mn { font-family: var(--courier); font-size: .7rem; color: #666; }
-.m-row .tierbadge { font-family: var(--stencil-font); font-size: .75rem; padding: 2px 8px; border: 2px solid var(--ink); }
-.tier-S { background: var(--red); color: #fff; border-color: var(--red) !important; }
-.tier-A { background: var(--ink); color: #fff; }
-.tier-B { background: #fff; color: var(--ink); }
-.tier-cursed { background: var(--drab); color: var(--sand); border-color: var(--drab) !important; }
-.m-row.cursed-row { background: #f4f3e7; }
 .condolence {
   margin-top: 16px; border: 2px dashed var(--drab); padding: 12px;
   font-family: var(--courier); font-size: .8rem; color: var(--drab-dark); background: #f4f3e7;
