@@ -8,6 +8,9 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const RESET_SECRET = process.env.RESET_SECRET || 'hooah';
+// One claim per operative — the drop ends when this many kits are claimed,
+// even if items remain on the shelf (12 items, 7 friends).
+const PLAYER_COUNT = Number(process.env.PLAYER_COUNT) || 7;
 
 // ---- GET / — health check + endpoint map. Keeps the base URL from 404ing. --
 app.get('/', (_req, res) => {
@@ -21,7 +24,11 @@ app.get('/', (_req, res) => {
 // ---- GET /config — drop time + server clock, for countdown sync ------------
 app.get('/config', async (_req, res) => {
   const dropTime = await getDropTime();
-  res.json({ drop_time: dropTime, server_now: new Date().toISOString() });
+  res.json({
+    drop_time: dropTime,
+    server_now: new Date().toISOString(),
+    player_count: PLAYER_COUNT,
+  });
 });
 
 // ---- GET /mres — full stock status. Polled ~1.5s by every client. ----------
@@ -95,7 +102,14 @@ app.get('/manifest', async (_req, res) => {
       ORDER BY claimed_at`
   );
   const { rows: total } = await pool.query('SELECT count(*)::int AS n FROM mres');
-  res.json({ claimed: rows, total: total[0].n, complete: rows.length === total[0].n });
+  // Complete once every operative holds a kit — leftover items stay as surplus.
+  const needed = Math.min(PLAYER_COUNT, total[0].n);
+  res.json({
+    claimed: rows,
+    total: total[0].n,
+    player_count: PLAYER_COUNT,
+    complete: rows.length >= needed,
+  });
 });
 
 // ---- POST /reset — dev only. Clears claims; optionally reschedules drop. ----

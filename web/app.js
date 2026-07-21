@@ -28,6 +28,7 @@ const state = {
   mres: [],
   dropTime: null,     // ms epoch
   clockOffset: 0,     // serverNow - clientNow
+  playerCount: 7,     // drop ends after this many claims (server-configured)
   view: null,         // current view name; poll only rerenders 'grid'
   itemId: null,       // item being checked out
   pollTimer: null,
@@ -41,13 +42,18 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
 
 // Product-page copy, keyed by menu_no. Terse, catalog-voice, Courier-set.
 const DESC = {
-  1: 'The grail. Beef chili with macaroni in a pouch that trades above retail behind every mess tent on earth. Flameless ration heater included. You will not be the only one deploying for this.',
-  2: 'Beef ravioli in meat sauce. The people’s champ. Reliable, beloved, gone in seconds.',
-  4: 'Spaghetti with beef and sauce. A known quantity. Nobody brags about it, nobody returns it.',
-  8: 'Meatballs in marinara. Solid mid. Ships with crackers and a cheese spread of unverifiable origin.',
-  11: 'Cheese tortellini. Meatless but honest. The jalapeño cheese spread carries the whole kit.',
-  14: 'Pepper jack beef patty. A hamburger, legally speaking. Bread may arrive as a concept.',
-  21: 'Vegetarian omelette. The infamous one. Egg-adjacent loaf, feared service-wide. All sales final applies here with unusual force.',
+  1: 'Cheese tortellini in tomato sauce. Meatless but honest. The pasta course of the battlefield.',
+  2: 'Mexican style rice and beans. A side dish that unionized and demanded entree status. Dependable.',
+  3: 'Chicken burrito bowl. A burrito that gave up on structure. Assembly is your problem, operative.',
+  4: 'Beef patty with jalapeño pepper jack. A cheeseburger, legally speaking. Bread may arrive as a concept.',
+  5: 'Southwest beef and black beans. Bold. Regional. Directionally seasoned.',
+  6: 'Italian sausage with peppers and onions in marinara. The street-fair classic, sealed at the factory for your protection.',
+  7: 'Chicken chunks. White. Cooked. That is the full description on the pouch and we respect the honesty.',
+  8: 'The grail. Pepperoni pizza in a pouch — decades of military food science bent toward one slice. You will not be the only one deploying for this.',
+  9: 'Beef goulash. Old-world comfort by way of a defense contractor. Sturdy.',
+  10: 'Pork sausage patty, maple flavored. Breakfast, allegedly. A puck of destiny. Someone always ends up with it.',
+  11: 'Beef ravioli in meat sauce. The people’s champ. Reliable, beloved, gone in seconds.',
+  12: 'Mexican style chicken stew. Warm, capable, criminally underrated. The sleeper pick.',
 };
 
 // Original glyph for the Ball Pay button: two circles. That's it. That's the logo.
@@ -84,6 +90,7 @@ function pageHeader(active = 'shop') {
       <nav class="sup-nav">
         <a id="nav-shop" class="${active === 'shop' ? 'active' : ''}">shop</a>
         <a id="nav-cart" class="${active === 'cart' ? 'active' : ''}">cart${n ? ` (${n})` : ''}</a>
+        <a id="nav-lookbook" class="${active === 'lookbook' ? 'active' : ''}">lookbook</a>
         <a id="nav-manifest" class="${active === 'manifest' ? 'active' : ''}">manifest</a>
         <span class="op">${esc(state.me)}</span>
       </nav>
@@ -93,9 +100,11 @@ function pageHeader(active = 'shop') {
 function wireHeader() {
   const shop = document.getElementById('nav-shop');
   const cart = document.getElementById('nav-cart');
+  const lookbook = document.getElementById('nav-lookbook');
   const manifest = document.getElementById('nav-manifest');
   if (shop) shop.onclick = showGrid;
   if (cart) cart.onclick = showCart;
+  if (lookbook) lookbook.onclick = showLookbook;
   if (manifest) manifest.onclick = showManifest;
 }
 
@@ -133,6 +142,7 @@ function routeFromHash() {
       return pay ? pay(Number(p[2])) : route();
     }
     case 'manifest': return showManifest();
+    case 'lookbook': return showLookbook();
     default:         return route();
   }
 }
@@ -143,7 +153,10 @@ window.addEventListener('popstate', () => {
 });
 const item = (id) => state.mres.find((m) => m.id === id);
 const myClaim = () => state.mres.find((m) => m.claimed_by === state.me);
-const allClaimed = () => state.mres.length > 0 && state.mres.every((m) => m.claimed);
+const claimedCount = () => state.mres.filter((m) => m.claimed).length;
+// Drop ends when every operative holds a kit — leftover items become surplus.
+const dropOver = () => state.mres.length > 0
+  && claimedCount() >= Math.min(state.playerCount, state.mres.length);
 
 // ---------------- API ----------------
 async function apiGet(path) {
@@ -182,6 +195,7 @@ async function syncConfig() {
   const cfg = await apiGet('/config');
   state.clockOffset = new Date(cfg.server_now).getTime() - Date.now();
   state.dropTime = cfg.drop_time ? new Date(cfg.drop_time).getTime() : 0;
+  if (cfg.player_count) state.playerCount = cfg.player_count;
 }
 
 // ---------------- polling ----------------
@@ -201,10 +215,15 @@ function startPolling() {
     try { await refreshStock(); } catch { return; }
     // Only the grid rerenders on poll — never clobber a form mid-checkout.
     if (state.view === 'grid') {
-      allClaimed() ? showManifest() : renderGrid();
+      if (!dropOver()) manifestAutoShown = false;
+      // Flip to the manifest once when the drop completes; after that the
+      // grid stays browseable as surplus without bouncing the user off it.
+      if (dropOver() && !manifestAutoShown) return showManifest();
+      renderGrid();
     }
   }, CFG.POLL_MS);
 }
+let manifestAutoShown = false;
 
 function setView(name, bodyTheme) {
   state.view = name;
@@ -279,13 +298,15 @@ function showCountdown() {
       <p class="queuepos">YOU ARE <b id="qpos">#—</b> IN LINE OF ~${CFG.FAKE_QUEUE_TOTAL.toLocaleString()}</p>
       <div class="rules">
         <h3>RULES OF THE DROP</h3>
-        <li>ONE (1) MRE PER OPERATIVE.</li>
+        <li>ONE (1) MRE PER OPERATIVE. ${esc(String(state.playerCount))} KITS END THE DROP.</li>
         <li>FIRST COME, FIRST SERVE. PAYMENT COMPLETION IS THE ONLY LOCK.</li>
         <li>IF YOUR MENU IS SECURED BY ANOTHER OPERATIVE, DEPLOY FOR ANOTHER.</li>
-        <li>ALL SALES FINAL. ESPECIALLY THE OMELETTE.</li>
+        <li>ALL SALES FINAL. ESPECIALLY THE MAPLE SAUSAGE.</li>
       </div>
+      <button id="lookbook-link" class="btn btn-red" style="margin-top:18px">VIEW THE LOOKBOOK</button>
       <p class="mono" style="margin-top:14px;font-size:.72rem;opacity:.7">logged in as ${esc(state.me)}</p>
     </div>`;
+  document.getElementById('lookbook-link').onclick = showLookbook;
 
   const total = Math.max(state.dropTime - serverNow(), 1);
   const q0 = queueStart();
@@ -315,7 +336,7 @@ function goLive() {
   document.body.appendChild(flash);
   setTimeout(() => flash.remove(), 950);
   startPolling();
-  refreshStock().then(() => (allClaimed() ? showManifest() : showGrid())).catch(showGrid);
+  refreshStock().then(() => (dropOver() ? showManifest() : showGrid())).catch(showGrid);
 }
 
 // ================= DROP GRID =================
@@ -328,27 +349,32 @@ function showGrid() {
 
 function renderGrid() {
   const mine = myClaim();
+  const over = dropOver();
   // Supreme shop grid: photos only. No captions, no borders, no tier badges.
   const tiles = state.mres.map((m) => {
     const sold = m.claimed;
     return `
       <button class="tile ${sold ? 'sold' : ''}" data-id="${m.id}"
-              ${sold || mine ? 'disabled' : ''}
+              ${sold || mine || over ? 'disabled' : ''}
               ${sold ? `title="secured by ${esc(m.claimed_by)}"` : ''}>
         ${pouchHTML(m)}
         ${sold ? '<div class="soldout"><span>sold out</span></div>' : ''}
       </button>`;
   }).join('');
 
+  const status = mine
+    ? `KIT SECURED: <b>MENU NO. ${mine.menu_no} — ${esc(mine.name)}</b>. ONE PER OPERATIVE. ENJOY THE SHOW.`
+    : over
+      ? `DROP COMPLETE. REMAINING STOCK IS SURPLUS — LOOK, DON'T TOUCH.`
+      : `DROP IS LIVE. PAYMENT COMPLETION IS THE ONLY LOCK — <b>MOVE.</b>`;
+
   $app.innerHTML = `
     ${pageHeader('shop')}
-    ${mine
-      ? `<div class="mystatus">KIT SECURED: <b>MENU NO. ${mine.menu_no} — ${esc(mine.name)}</b>. ONE PER OPERATIVE. ENJOY THE SHOW.</div>`
-      : `<div class="mystatus">DROP IS LIVE. PAYMENT COMPLETION IS THE ONLY LOCK — <b>MOVE.</b></div>`}
+    <div class="mystatus">${status}</div>
     <div class="grid">${tiles}</div>`;
   wireHeader();
 
-  if (!mine) {
+  if (!mine && !over) {
     $app.querySelectorAll('.tile:not(.sold)').forEach((t) => {
       t.onclick = () => showProduct(Number(t.dataset.id));
     });
@@ -832,7 +858,7 @@ function renderSecured(it) {
       <div class="fs-op stencil">KIT ASSIGNED TO ${esc(it.claimed_by)}</div>
       <button id="go" class="btn btn-red">RETURN TO THE DROP</button>
     </div>`;
-  document.getElementById('go').onclick = () => (allClaimed() ? showManifest() : showGrid());
+  document.getElementById('go').onclick = () => (dropOver() ? showManifest() : showGrid());
 }
 
 // The group-chat moment. Must be fast to leave.
@@ -848,7 +874,7 @@ function renderTooSlow(mreId, winner) {
       <div class="fs-op">OPERATIVE: ${esc(winner || 'UNKNOWN')}</div>
       <button id="go" class="btn" style="background:#fff;color:var(--red)">RETURN TO THE DROP</button>
     </div>`;
-  document.getElementById('go').onclick = () => (allClaimed() ? showManifest() : showGrid());
+  document.getElementById('go').onclick = () => (dropOver() ? showManifest() : showGrid());
 }
 
 function renderAlreadyHave(menuNo) {
@@ -862,7 +888,7 @@ function renderAlreadyHave(menuNo) {
       <div class="fs-detail">YOU ALREADY HOLD MENU NO. ${esc(menuNo)}. STAND DOWN.</div>
       <button id="go" class="btn btn-red">RETURN TO THE DROP</button>
     </div>`;
-  document.getElementById('go').onclick = () => (allClaimed() ? showManifest() : showGrid());
+  document.getElementById('go').onclick = () => (dropOver() ? showManifest() : showGrid());
 }
 
 function renderTransmissionLost(mreId) {
@@ -882,7 +908,7 @@ function renderTransmissionLost(mreId) {
 
 // ================= MANIFEST =================
 const CONDOLENCES = [
-  'THE VOMELETTE CHOOSES ITS OWN. OUR CONDOLENCES,',
+  'THE MAPLE PUCK CHOOSES ITS OWN. OUR CONDOLENCES,',
   'SOMEONE HAD TO. IT WAS ALWAYS GOING TO BE',
   'A GRATEFUL NATION MOURNS THE BREAKFAST OF',
 ];
@@ -902,25 +928,62 @@ async function showManifest() {
       </div>
     </div>`).join('');
 
-  const cursed = data.claimed.find((r) => /omelette/i.test(r.name));
+  // The maple sausage puck inherits the vomelette's condolence.
+  const cursed = data.claimed.find((r) => /maple/i.test(r.name));
   const condolence = cursed
     ? `<div class="condolence">${CONDOLENCES[cursed.menu_no % CONDOLENCES.length]} ${esc(cursed.claimed_by)}.</div>`
     : '';
 
+  const players = data.player_count ?? state.playerCount;
+  const surplus = data.total - data.claimed.length;
   $app.innerHTML = `
     <div class="manifest">
       <div class="m-head">
         <div class="boxlogo small">supremRe<span class="tm">™</span></div>
         <h2>AFTER ACTION REPORT</h2>
       </div>
-      <div class="m-sub">// RATION DROP MANIFEST // ${data.claimed.length}/${data.total} KITS ASSIGNED // ALL SALES FINAL //</div>
+      <div class="m-sub">// RATION DROP MANIFEST // ${data.claimed.length}/${players} OPERATIVES SERVED // ${surplus} SURPLUS // ALL SALES FINAL //</div>
       ${rows || '<p class="mono">no kits assigned. the drop was a massacre in reverse.</p>'}
       ${condolence}
       <div class="m-foot">supremRe&trade; &middot; Meal, Ready-to-Eat &middot; unauthorized resale is a war crime</div>
     </div>
-    ${data.complete ? '' : '<div style="text-align:center"><button class="backlink" id="back-shop">back to shop</button></div>'}`;
+    <div style="text-align:center"><button class="backlink" id="back-shop">${data.complete ? 'browse the surplus' : 'back to shop'}</button></div>`;
   const back = document.getElementById('back-shop');
   if (back) back.onclick = showGrid;
+}
+
+// ================= LOOKBOOK (flavor preview — browsable before the drop) =================
+async function showLookbook() {
+  setRoute('#/lookbook');
+  setView('lookbook', 'theme-red');
+  if (state.mres.length === 0) { try { await refreshStock(); } catch {} }
+  const preDrop = state.dropTime && serverNow() < state.dropTime;
+
+  const entries = state.mres.map((m, idx) => `
+    <figure class="lb-entry">
+      ${pouchHTML(m, 'big')}
+      <figcaption>
+        <span class="lb-num">${String(idx + 1).padStart(2, '0')}/${String(state.mres.length).padStart(2, '0')}</span>
+        <span class="lb-name">${esc(m.name)}</span>
+        <p class="lb-desc">${esc(DESC[m.menu_no] || 'Meal, Ready-to-Eat. Individual.')}</p>
+      </figcaption>
+    </figure>`).join('');
+
+  // Deliberately minimal chrome: pre-drop this page must not leak into the shop.
+  $app.innerHTML = `
+    <header class="sup-header">
+      <div class="boxlogo small">supremRe<span class="tm">™</span></div>
+      <nav class="sup-nav"><span class="op">${esc(state.me)}</span></nav>
+    </header>
+    <div class="lb-head">
+      <h1 class="lb-title">Lookbook</h1>
+      <div class="lb-sub mono">DROP 001 &mdash; MEAL, READY-TO-EAT &mdash; ${state.mres.length} MENUS &mdash; LOOK, DON'T COP</div>
+    </div>
+    <div class="lookbook">${entries}</div>
+    <div style="text-align:center;padding:18px 0">
+      <button class="backlink" id="lb-back">${preDrop ? 'back to the countdown' : 'back to the shop'}</button>
+    </div>`;
+  document.getElementById('lb-back').onclick = () => (preDrop ? showCountdown() : showGrid());
 }
 
 // ================= COMMAND POST (dev reset, #reset in the URL) =================
@@ -1017,7 +1080,7 @@ async function route() {
   if (state.dropTime && serverNow() < state.dropTime) return showCountdown();
   startPolling();
   try { await refreshStock(); } catch {}
-  allClaimed() ? showManifest() : showGrid();
+  dropOver() ? showManifest() : showGrid();
 }
 
 (async function boot() {

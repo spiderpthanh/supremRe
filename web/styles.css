@@ -438,6 +438,24 @@ input[type="file"] { display: none; }
   animation: redflash .9s ease forwards; pointer-events: none;
 }
 
+/* ---- Lookbook (editorial flavor preview) ----------------------------------- */
+.lb-head { text-align: center; margin: 6px 0 28px; }
+.lb-title {
+  font-family: var(--logo-font); font-style: italic; font-weight: 900;
+  font-size: 1.7rem; letter-spacing: -0.5px;
+}
+.lb-sub { font-size: .68rem; color: var(--gray); letter-spacing: .12em; margin-top: 6px; }
+.lookbook {
+  display: grid; gap: 34px 22px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+.lb-entry { margin: 0; }
+.lb-entry .ph { background: #f7f7f7; }
+.lb-entry figcaption { padding: 10px 2px 0; }
+.lb-entry .lb-num { font-family: var(--courier); font-size: 10px; color: var(--gray); display: block; }
+.lb-entry .lb-name { font-size: 12px; font-weight: bold; display: block; margin: 2px 0 4px; }
+.lb-entry .lb-desc { font-family: var(--courier); font-size: 10.5px; color: #555; line-height: 1.6; }
+
 /* ---- Manifest (after action report — the shareable screenshot) ------------ */
 .manifest {
   background: #fff; color: var(--ink); border: 4px solid var(--ink);

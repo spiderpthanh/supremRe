@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { ITEMS } from './items.js';
+import { ITEMS, ITEMS_VERSION } from './items.js';
 
 const { Pool } = pg;
 
@@ -40,9 +40,10 @@ export async function initDb() {
       drop_time TIMESTAMPTZ NOT NULL
     );
   `);
+  await pool.query('ALTER TABLE drop_config ADD COLUMN IF NOT EXISTS seed_version INT NOT NULL DEFAULT 0;');
 
-  await seedItems();
-
+  // Ensure the config row exists BEFORE seeding, so a fresh DB still gets the
+  // boot+15min default and the reseed only ever touches seed_version.
   const dropTime = process.env.DROP_TIME
     ? new Date(process.env.DROP_TIME)
     : new Date(Date.now() + DEFAULT_DROP_DELAY_MS);
@@ -51,17 +52,27 @@ export async function initDb() {
      ON CONFLICT (id) DO ${process.env.DROP_TIME ? 'UPDATE SET drop_time = $1' : 'NOTHING'}`,
     [dropTime]
   );
+
+  await seedItems();
 }
 
+// Versioned reseed: whenever ITEMS_VERSION is bumped, the deployed DB wipes
+// its inventory (claims included) and reloads the new list on boot.
 async function seedItems() {
-  const { rows } = await pool.query('SELECT count(*)::int AS n FROM mres');
-  if (rows[0].n > 0) return;
+  const { rows } = await pool.query('SELECT seed_version FROM drop_config WHERE id = 1');
+  const current = rows[0]?.seed_version ?? 0;
+  const { rows: cnt } = await pool.query('SELECT count(*)::int AS n FROM mres');
+  if (current === ITEMS_VERSION && cnt[0].n > 0) return;
+
+  await pool.query('DELETE FROM mres');
   for (const it of ITEMS) {
     await pool.query(
       'INSERT INTO mres (menu_no, name, nsn) VALUES ($1, $2, $3)',
       [it.menu_no, it.name, it.nsn]
     );
   }
+  await pool.query('UPDATE drop_config SET seed_version = $1 WHERE id = 1', [ITEMS_VERSION]);
+  console.log(`Inventory reseeded to version ${ITEMS_VERSION} (${ITEMS.length} items)`);
 }
 
 export async function getDropTime() {
