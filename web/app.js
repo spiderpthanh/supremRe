@@ -1006,8 +1006,14 @@ async function showAdmin() {
       <button id="adm-reset-live" class="btn btn-red btn-block" style="margin-bottom:10px">
         RESET CLAIMS — DROP LIVE NOW
       </button>
-      <button id="adm-reset-sched" class="btn btn-red btn-block" style="margin-bottom:10px">
+      <button id="adm-reset-sched" class="btn btn-red btn-block" style="margin-bottom:16px">
         RESET CLAIMS + COUNTDOWN IN <span id="adm-mins-label">15</span> MIN
+      </button>
+
+      <input id="adm-when" class="gate-input" type="datetime-local"
+             style="font-family:var(--courier);font-size:1rem">
+      <button id="adm-reset-at" class="btn btn-red btn-block" style="margin-bottom:10px">
+        RESET CLAIMS + DROP AT SELECTED TIME
       </button>
       <button id="adm-clear-local" class="btn" style="margin-bottom:10px;background:var(--drab-dark);color:var(--sand);width:100%">
         CLEAR THIS BROWSER'S DATA (name, card, ball pay)
@@ -1026,6 +1032,16 @@ async function showAdmin() {
   minsInput.oninput = () => {
     document.getElementById('adm-mins-label').textContent = minsInput.value || '?';
   };
+
+  // Pre-fill the date picker with the next noon (local time) as a sane default.
+  const whenInput = document.getElementById('adm-when');
+  {
+    const d = new Date();
+    if (d.getHours() >= 12) d.setDate(d.getDate() + 1);
+    d.setHours(12, 0, 0, 0);
+    const p = (n) => String(n).padStart(2, '0');
+    whenInput.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
 
   const doReset = async (dropInSeconds) => {
     const secret = document.getElementById('adm-secret').value.trim();
@@ -1048,7 +1064,7 @@ async function showAdmin() {
       }
       await syncConfig().catch(() => {});
       await refreshStock().catch(() => {});
-      const t = body.drop_time ? new Date(body.drop_time).toLocaleTimeString() : 'unchanged';
+      const t = body.drop_time ? new Date(body.drop_time).toLocaleString() : 'unchanged';
       status.textContent = `ALL CLAIMS CLEARED. DROP TIME: ${t}.`;
     } catch {
       status.textContent = 'TRANSMISSION FAILED. IS THE API UP?';
@@ -1060,6 +1076,16 @@ async function showAdmin() {
     const mins = Number(minsInput.value);
     if (!Number.isFinite(mins) || mins < 0) { status.textContent = 'MINUTES MUST BE A NUMBER.'; return; }
     doReset(Math.round(mins * 60));
+  };
+  document.getElementById('adm-reset-at').onclick = async () => {
+    if (!whenInput.value) { status.textContent = 'PICK A DATE AND TIME.'; return; }
+    const target = new Date(whenInput.value).getTime(); // local wall-clock
+    // Sync the server clock first so the computed offset is exact even if
+    // this device's clock drifts.
+    await syncConfig().catch(() => {});
+    const secs = Math.round((target - serverNow()) / 1000);
+    if (secs <= 0) { status.textContent = 'THAT TIME IS IN THE PAST, TIME TRAVELER.'; return; }
+    doReset(secs);
   };
   document.getElementById('adm-clear-local').onclick = () => {
     [LS.name, LS.card, LS.cardSaved, LS.ballpay, LS.queue, LS.cart].forEach((k) => localStorage.removeItem(k));
