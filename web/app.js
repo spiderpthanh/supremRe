@@ -256,16 +256,42 @@ function showGate(msg = '') {
     const name = input.value.trim().toUpperCase().replace(/\s+/g, ' ');
     if (name.length < 2) return showGate('THAT NAME IS TOO SHORT.');
     try { await refreshStock(); } catch {}
-    // Name is the claim key — reject one that already holds a kit.
-    if (state.mres.some((m) => m.claimed_by === name)) {
-      return showGate(`OPERATIVE "${name}" ALREADY HOLDS A KIT. PICK ANOTHER NAME.`);
-    }
+    // Name is the claim key. If it already holds a kit, this is probably the
+    // same person on a new device — confirm instead of locking them out.
+    const holder = state.mres.find((m) => m.claimed_by === name);
+    if (holder) return showGateConfirm(name, holder);
     state.me = name;
     localStorage.setItem(LS.name, name);
     route();
   };
   document.getElementById('enlist').onclick = submit;
   input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
+}
+
+// A name that already claimed re-entering from a fresh device: let the real
+// owner continue (they can't claim again anyway — one_each has them covered).
+function showGateConfirm(name, m) {
+  setView('gate', 'theme-drab');
+  $app.innerHTML = `
+    <div class="briefing">
+      <div class="classified mono">// RESTRICTED // RATION OPS //</div>
+      <div class="boxlogo">supremRe<span class="tm">™</span></div>
+      <h1 class="stencil">Welcome Back?</h1>
+      <p class="sub">menu no. ${m.menu_no} &mdash; ${esc(m.name)} is already secured under this name</p>
+      <div style="margin:24px 0 10px">
+        <button id="its-me" class="btn btn-red btn-block" style="margin-bottom:10px">THAT'S ME &mdash; CONTINUE AS ${esc(name)}</button>
+        <button id="not-me" class="btn btn-block" style="background:var(--drab-dark);color:var(--sand)">PICK A DIFFERENT NAME</button>
+      </div>
+      <p class="mono" style="font-size:.72rem;opacity:.7">
+        if this isn't you, someone in the group chat owes an explanation.
+      </p>
+    </div>`;
+  document.getElementById('its-me').onclick = () => {
+    state.me = name;
+    localStorage.setItem(LS.name, name);
+    route();
+  };
+  document.getElementById('not-me').onclick = () => showGate();
 }
 
 // ================= COUNTDOWN (cold open) =================
