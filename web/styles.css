@@ -406,7 +406,7 @@ input[type="file"] { display: none; }
 }
 .rules h3 { font-family: var(--stencil-font); letter-spacing: .1em; margin-bottom: 8px; color: #fff; }
 .rules li { list-style: none; }
-.rules li::before { content: '\25A0 '; color: var(--red); }
+.rules li::before { content: '\25A0'; color: var(--red); margin-right: 10px; }
 
 .gate-input {
   display: block; width: 100%; margin: 18px 0 10px;
@@ -485,4 +485,13 @@ input[type="file"] { display: none; }
      collapse the box to its intrinsic size, clipping the pouch. */
   .ph.big { width: 100%; max-width: 340px; margin: 0 auto; }
   .ph.big .pouch { font-size: clamp(12px, 4.4vw, 16px); }
+
+  /* Manifest breathing room on phones */
+  .manifest { padding: 20px 16px; margin: 12px auto; border-width: 3px; }
+  .manifest .m-head { flex-direction: column; align-items: flex-start; gap: 10px; padding-bottom: 14px; }
+  .manifest .m-sub { line-height: 1.8; margin-bottom: 18px; }
+  .m-row { gap: 14px; padding: 14px 2px; }
+  .m-row .m-op { font-size: .85rem; }
+  .m-row .m-item .nm { font-size: .95rem; }
+  .condolence { line-height: 1.7; }
 }

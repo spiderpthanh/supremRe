@@ -247,14 +247,14 @@ function showGate(msg = '') {
       <div class="notice">${esc(msg)}</div>
       <button id="enlist" class="btn btn-red btn-block">ENLIST</button>
       <p class="mono" style="margin-top:14px;font-size:.72rem;opacity:.7">
-        no login. no password. your name is your claim key. don't be weird about it.
+        no login, no password. your name is your claim key.
       </p>
     </div>`;
   const input = document.getElementById('namein');
   input.focus();
   const submit = async () => {
     const name = input.value.trim().toUpperCase().replace(/\s+/g, ' ');
-    if (name.length < 2) return showGate('CALLSIGN TOO SHORT, SOLDIER.');
+    if (name.length < 2) return showGate('THAT NAME IS TOO SHORT.');
     try { await refreshStock(); } catch {}
     // Name is the claim key — reject one that already holds a kit.
     if (state.mres.some((m) => m.claimed_by === name)) {
@@ -293,7 +293,7 @@ function showCountdown() {
       <div class="classified mono">// OPERATION: CHOW CALL // EYES ONLY //</div>
       <div class="boxlogo">supremRe<span class="tm">™</span></div>
       <h1 class="stencil">Ration Drop Imminent</h1>
-      <p class="sub">7 meals. 7 operatives. 0 mercy.</p>
+      <p class="sub">${state.mres.length || 12} meals &middot; ${state.playerCount} operatives &middot; first come, first served</p>
       <div id="clock" class="clock">--:--</div>
       <p class="queuepos">YOU ARE <b id="qpos">#—</b> IN LINE OF ~${CFG.FAKE_QUEUE_TOTAL.toLocaleString()}</p>
       <div class="rules">
@@ -311,6 +311,8 @@ function showCountdown() {
   const total = Math.max(state.dropTime - serverNow(), 1);
   const q0 = queueStart();
   let ticks = 0;
+  // The queue only moves every few seconds — real queues lurch, they don't hum.
+  let nextQueueAt = 0;
   const tick = () => {
     // Re-sync drop_time every ~5s so a rescheduled drop reaches waiting clients.
     if (++ticks % 20 === 0) syncConfig().catch(() => {});
@@ -321,9 +323,11 @@ function showCountdown() {
       return goLive();
     }
     document.getElementById('clock').textContent = fmtClock(left);
-    // Queue "advances" toward the front as T-0 approaches, with jitter.
-    const pos = Math.max(1, Math.floor(q0 * (left / total)) - Math.floor(Math.random() * 25));
-    document.getElementById('qpos').textContent = `#${pos.toLocaleString()}`;
+    if (Date.now() >= nextQueueAt) {
+      nextQueueAt = Date.now() + 4000 + Math.random() * 5000;
+      const pos = Math.max(1, Math.floor(q0 * (left / total)) - Math.floor(Math.random() * 25));
+      document.getElementById('qpos').textContent = `#${pos.toLocaleString()}`;
+    }
   };
   tick();
   state.tickTimer = setInterval(tick, 250);
@@ -363,10 +367,10 @@ function renderGrid() {
   }).join('');
 
   const status = mine
-    ? `KIT SECURED: <b>MENU NO. ${mine.menu_no} — ${esc(mine.name)}</b>. ONE PER OPERATIVE. ENJOY THE SHOW.`
+    ? `KIT SECURED: <b>MENU NO. ${mine.menu_no} — ${esc(mine.name)}</b>. ONE PER OPERATIVE.`
     : over
-      ? `DROP COMPLETE. REMAINING STOCK IS SURPLUS — LOOK, DON'T TOUCH.`
-      : `DROP IS LIVE. PAYMENT COMPLETION IS THE ONLY LOCK — <b>MOVE.</b>`;
+      ? `DROP COMPLETE. REMAINING STOCK IS SURPLUS.`
+      : `DROP IS LIVE. ITEMS ARE NOT HELD UNTIL PAYMENT COMPLETES.`;
 
   $app.innerHTML = `
     ${pageHeader('shop')}
@@ -513,7 +517,7 @@ const BP_FINE = `
     a note from the operator: &ldquo;I trained an image AI model to recognize
     their balls specifically, and I will be running it on the photos they
     upload.&rdquo;<br>
-    counterfeit balls will be reported to supply command.
+    thank you for your cooperation.
   </div>`;
 
 function showBallPay(id) {
@@ -612,15 +616,15 @@ const CARD_FIELDS = [
   { key: 'phone_rev', label: '5. Confirm phone number, backwards', hint: 'the reverse of field 2. read it again.',
     validate: (v, all) => v.trim() === (all.phone || '').trim().split('').reverse().join('') && v.trim() !== ''
       ? null : 'THAT IS NOT FIELD 2 BACKWARDS.' },
-  { key: 'school', label: '6. Elementary school attended', hint: 'we will not verify. we will judge.',
+  { key: 'school', label: '6. Elementary school attended', hint: 'we will not verify.',
     validate: (v) => v.trim() ? null : 'REQUIRED.' },
   { key: 'water', label: '7. Favorite water brand', hint: 'be honest',
     validate: (v) => !v.trim() ? 'REQUIRED.' : /dasani/i.test(v) ? 'BE SERIOUS.' : null },
-  { key: 'teeth', label: '8. Number of teeth you currently have', hint: 'count if unsure. we can wait. others cannot.',
-    validate: (v) => { const n = Number(v.trim()); return Number.isInteger(n) && n >= 0 && n <= 32 ? null : '0–32. HUMANS ONLY.'; } },
+  { key: 'teeth', label: '8. Number of teeth you currently have', hint: 'count if unsure.',
+    validate: (v) => { const n = Number(v.trim()); return Number.isInteger(n) && n >= 0 && n <= 32 ? null : 'MUST BE BETWEEN 0 AND 32.'; } },
   { key: 'maiden_color', label: '9. Mother’s maiden name’s favorite color', hint: 'the color the name would like',
     validate: (v) => v.trim() ? null : 'REQUIRED.' },
-  { key: 'ssn4', label: '10. Last 4 digits of a stranger’s SSN', hint: 'a STRANGER’S. do not incriminate yourself.',
+  { key: 'ssn4', label: '10. Last 4 digits of a stranger’s SSN', hint: 'a stranger’s, not yours.',
     validate: (v) => /^\d{4}$/.test(v.trim()) ? null : 'EXACTLY 4 DIGITS.' },
 ];
 
@@ -736,7 +740,7 @@ function showPlaypal(id) {
       <button id="spin" class="btn btn-red">SPIN</button>
       <div class="pp-fine">
         play and win BOTH games to check out. no refunds. no financial advice.<br>
-        spin as many times as you need. the clock does not stop for you.
+        spin as many times as you need.
       </div>
       <div class="notice" id="pp-status"></div>
     </div>
@@ -885,7 +889,7 @@ function renderAlreadyHave(menuNo) {
     <div class="fullscreen fs-white">
       <div class="fs-eyebrow">SUPPLY DISCIPLINE</div>
       <h1>ONE PER<br>OPERATIVE</h1>
-      <div class="fs-detail">YOU ALREADY HOLD MENU NO. ${esc(menuNo)}. STAND DOWN.</div>
+      <div class="fs-detail">YOU ALREADY HOLD MENU NO. ${esc(menuNo)}. ONE PER OPERATIVE.</div>
       <button id="go" class="btn btn-red">RETURN TO THE DROP</button>
     </div>`;
   document.getElementById('go').onclick = () => (dropOver() ? showManifest() : showGrid());
@@ -943,9 +947,9 @@ async function showManifest() {
         <h2>AFTER ACTION REPORT</h2>
       </div>
       <div class="m-sub">// RATION DROP MANIFEST // ${data.claimed.length}/${players} OPERATIVES SERVED // ${surplus} SURPLUS // ALL SALES FINAL //</div>
-      ${rows || '<p class="mono">no kits assigned. the drop was a massacre in reverse.</p>'}
+      ${rows || '<p class="mono">no kits assigned yet.</p>'}
       ${condolence}
-      <div class="m-foot">supremRe&trade; &middot; Meal, Ready-to-Eat &middot; unauthorized resale is a war crime</div>
+      <div class="m-foot">supremRe&trade; &middot; Meal, Ready-to-Eat &middot; unauthorized resale is discouraged</div>
     </div>
     <div style="text-align:center"><button class="backlink" id="back-shop">${data.complete ? 'browse the surplus' : 'back to shop'}</button></div>`;
   const back = document.getElementById('back-shop');
@@ -977,7 +981,7 @@ async function showLookbook() {
     </header>
     <div class="lb-head">
       <h1 class="lb-title">Lookbook</h1>
-      <div class="lb-sub mono">DROP 001 &mdash; MEAL, READY-TO-EAT &mdash; ${state.mres.length} MENUS &mdash; LOOK, DON'T COP</div>
+      <div class="lb-sub mono">DROP 001 &mdash; MEAL, READY-TO-EAT &mdash; ${state.mres.length} MENUS &mdash; FLAVOR PREVIEW</div>
     </div>
     <div class="lookbook">${entries}</div>
     <div style="text-align:center;padding:18px 0">
