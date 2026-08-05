@@ -417,6 +417,34 @@ input[type="file"] { display: none; }
 .gate-input:focus { outline: 3px solid var(--red); }
 .briefing .btn { font-size: 1.05rem; padding: 14px 28px; text-transform: uppercase; }
 
+/* ---- Command post: stock control ------------------------------------------ */
+.adm-stock-head {
+  font-family: var(--stencil-font); color: #fff; letter-spacing: .12em;
+  text-align: left; margin: 22px 0 8px; font-size: .85rem;
+}
+.adm-stock {
+  border: 2px dashed var(--sand); background: var(--drab-dark);
+  padding: 10px 12px; text-align: left; font-size: .72rem;
+}
+.adm-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid rgba(207,201,166,.15);
+}
+.adm-row:last-child { border-bottom: none; }
+.adm-row .adm-no { color: var(--sand); opacity: .7; flex: none; width: 42px; }
+.adm-row .adm-name { color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-row .adm-holder { color: var(--sand); opacity: .6; flex: none; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-row .adm-holder.held { color: var(--red); opacity: 1; font-weight: bold; }
+.adm-row .adm-act {
+  background: var(--red); color: #fff; border: none; font-family: var(--courier);
+  font-size: .68rem; font-weight: bold; padding: 3px 8px; flex: none; text-transform: lowercase;
+}
+.adm-row .adm-act:hover { background: var(--red-dark); }
+.adm-row .adm-assign-name {
+  background: var(--drab); border: 1px solid var(--sand); color: #fff;
+  font-family: var(--courier); font-size: .68rem; padding: 3px 6px; width: 74px; flex: none;
+}
+
 /* ---- Result screens (full-bleed drama) ----------------------------------- */
 .fullscreen {
   position: fixed; inset: 0; display: flex; flex-direction: column;

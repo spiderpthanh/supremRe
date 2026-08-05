@@ -1049,6 +1049,9 @@ async function showAdmin() {
         CLEAR THIS BROWSER'S DATA (name, card, ball pay)
       </button>
 
+      <div class="adm-stock-head">STOCK CONTROL</div>
+      <div id="adm-stock" class="adm-stock mono">loading stock...</div>
+
       <div id="adm-status" class="notice" style="min-height:2.4em"></div>
       <button class="backlink" id="adm-back" style="color:var(--sand)">back to the app</button>
       <p class="mono" style="margin-top:10px;font-size:.7rem;opacity:.6">
@@ -1122,6 +1125,68 @@ async function showAdmin() {
     state.me = null;
     status.textContent = 'LOCAL DATA WIPED. YOU ARE NOBODY AGAIN.';
   };
+
+  // ---- Stock control: per-item clear / assign ------------------------------
+  const stockEl = document.getElementById('adm-stock');
+
+  const adminItem = async (mreId, claimedBy, label) => {
+    const secret = document.getElementById('adm-secret').value.trim();
+    if (!secret) { status.textContent = 'ENTER THE RESET SECRET.'; return; }
+    localStorage.setItem(LS.adminSecret, secret);
+    try {
+      const res = await fetch(`${API}/admin/item`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, mre_id: mreId, claimed_by: claimedBy }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        status.textContent =
+          body.reason === 'bad_secret' ? 'BAD SECRET. ACCESS DENIED.'
+          : body.reason === 'already_holds' ? `${body.user} ALREADY HOLDS A KIT.`
+          : `FAILED (${res.status}).`;
+        return;
+      }
+      status.textContent = label;
+    } catch {
+      status.textContent = 'TRANSMISSION FAILED. IS THE API UP?';
+    }
+    renderStock();
+  };
+
+  async function renderStock() {
+    if (state.view !== 'admin') return;
+    try { await refreshStock(); } catch {
+      stockEl.textContent = 'stock unavailable. is the api up?';
+      return;
+    }
+    stockEl.innerHTML = state.mres.map((m) => `
+      <div class="adm-row">
+        <span class="adm-no">NO.${m.menu_no}</span>
+        <span class="adm-name">${esc(m.name)}</span>
+        <span class="adm-holder ${m.claimed ? 'held' : ''}">${m.claimed ? esc(m.claimed_by) : '&mdash;'}</span>
+        ${m.claimed
+          ? `<button class="adm-act" data-clear="${m.id}">clear</button>`
+          : `<input class="adm-assign-name" data-for="${m.id}" placeholder="name" maxlength="20">
+             <button class="adm-act" data-assign="${m.id}">assign</button>`}
+      </div>`).join('');
+
+    stockEl.querySelectorAll('[data-clear]').forEach((b) => {
+      b.onclick = () => {
+        const m = item(Number(b.dataset.clear));
+        adminItem(m.id, null, `MENU NO. ${m.menu_no} CLEARED.`);
+      };
+    });
+    stockEl.querySelectorAll('[data-assign]').forEach((b) => {
+      b.onclick = () => {
+        const m = item(Number(b.dataset.assign));
+        const name = stockEl.querySelector(`[data-for="${m.id}"]`).value.trim().toUpperCase();
+        if (!name) { status.textContent = 'TYPE A NAME TO ASSIGN.'; return; }
+        adminItem(m.id, name, `MENU NO. ${m.menu_no} → ${name}.`);
+      };
+    });
+  }
+  renderStock();
   document.getElementById('adm-back').onclick = () => {
     history.replaceState(null, '', location.pathname);
     route();

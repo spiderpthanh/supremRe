@@ -112,6 +112,35 @@ app.get('/manifest', async (_req, res) => {
   });
 });
 
+// ---- POST /admin/item — per-item claim control (secret-gated). -------------
+// { secret, mre_id, claimed_by }: a name assigns the item (admin overwrite),
+// null/empty clears it. The one_each index still blocks a name holding two.
+app.post('/admin/item', async (req, res) => {
+  const { secret, mre_id, claimed_by } = req.body ?? {};
+  if (secret !== RESET_SECRET) return res.status(403).json({ reason: 'bad_secret' });
+  const mreId = Number(mre_id);
+  if (!Number.isInteger(mreId)) return res.status(400).json({ reason: 'bad_request' });
+  const name = typeof claimed_by === 'string' ? claimed_by.trim() : '';
+
+  try {
+    const { rows } = await pool.query(
+      name
+        ? `UPDATE mres SET claimed_by = $2, claimed_at = now()
+             WHERE id = $1 RETURNING id, menu_no, name, nsn, claimed_by, claimed_at`
+        : `UPDATE mres SET claimed_by = NULL, claimed_at = NULL
+             WHERE id = $1 RETURNING id, menu_no, name, nsn, claimed_by, claimed_at`,
+      name ? [mreId, name] : [mreId]
+    );
+    if (rows.length === 0) return res.status(404).json({ reason: 'no_such_mre' });
+    res.json({ ok: true, item: rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ reason: 'already_holds', user: name });
+    }
+    throw err;
+  }
+});
+
 // ---- POST /reset — dev only. Clears claims; optionally reschedules drop. ----
 // Body: { secret, drop_in_seconds? }
 app.post('/reset', async (req, res) => {

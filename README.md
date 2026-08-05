@@ -76,6 +76,10 @@ Open the site with `#reset` on the URL — e.g. `https://your-site.pages.dev/#re
   (clients re-sync `drop_time` every ~10 polls) — a full re-run needs no refreshes.
 - **Clear this browser's data**: wipes your saved name, card fields, and
   Ball Pay flag on this device only, so you can replay as a fresh operative.
+- **Stock control**: a per-item list of all 12 MREs with their holders — clear a
+  single claim (e.g. a test user's) or manually assign an item to a name, without
+  touching the rest of the board or the schedule. One-per-person still applies to
+  manual assigns (`POST /admin/item` under the hood, same secret).
 
 The reset secret is remembered in your browser after first use. Server-side it
 is still just `POST /reset` — the panel is a UI over the same endpoint.
