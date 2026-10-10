@@ -27,10 +27,18 @@ export async function initDb() {
   // Migration: the tier system was removed — people decide what they want.
   await pool.query('ALTER TABLE mres DROP COLUMN IF EXISTS tier;');
 
-  // ONE meal per person, enforced by the database. Never check-then-write in app code.
+  // Drops come in rounds: each claim is stamped with the round it happened in.
+  await pool.query('ALTER TABLE mres ADD COLUMN IF NOT EXISTS claim_round INT;');
+  // Claims that predate rounds belong to round 1. Must run before the index
+  // below, since NULLs are distinct in a unique index and would slip past it.
+  await pool.query('UPDATE mres SET claim_round = 1 WHERE claimed_by IS NOT NULL AND claim_round IS NULL;');
+
+  // ONE meal per person PER ROUND, enforced by the database. Never
+  // check-then-write in app code.
+  await pool.query('DROP INDEX IF EXISTS one_each;');
   await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS one_each
-      ON mres (claimed_by)
+    CREATE UNIQUE INDEX IF NOT EXISTS one_each_round
+      ON mres (claimed_by, claim_round)
       WHERE claimed_by IS NOT NULL;
   `);
 
@@ -41,6 +49,7 @@ export async function initDb() {
     );
   `);
   await pool.query('ALTER TABLE drop_config ADD COLUMN IF NOT EXISTS seed_version INT NOT NULL DEFAULT 0;');
+  await pool.query('ALTER TABLE drop_config ADD COLUMN IF NOT EXISTS current_round INT NOT NULL DEFAULT 1;');
 
   // Ensure the config row exists BEFORE seeding, so a fresh DB still gets the
   // boot+15min default and the reseed only ever touches seed_version.
@@ -78,4 +87,9 @@ async function seedItems() {
 export async function getDropTime() {
   const { rows } = await pool.query('SELECT drop_time FROM drop_config WHERE id = 1');
   return rows[0]?.drop_time ?? null;
+}
+
+export async function getRound() {
+  const { rows } = await pool.query('SELECT current_round FROM drop_config WHERE id = 1');
+  return rows[0]?.current_round ?? 1;
 }

@@ -25,8 +25,21 @@ RETURNING *;
 
 Nothing is held or reserved during payment. You can finish a whole payment flow
 and still lose the item at `/claim` — lock-at-completion, by design. A partial
-unique index (`one_each`) is the DB-level backstop that no operative ever holds
-two meals.
+unique index (`one_each_round`, on `(claimed_by, claim_round)`) is the DB-level
+backstop that no operative ever holds two meals **in the same drop**.
+
+## Drops (rounds)
+
+A drop ends when every operative has a kit (`PLAYER_COUNT` claims) or the shelf is
+empty. Leftover items can be released in a **second drop**: each claim is stamped
+with the drop it happened in, so everyone — round-1 winners included — can claim one
+more kit, and earlier drops' claims and results stay on the board. The manifest
+groups kits under `DROP 001`, `DROP 002`, …; from drop 2 on the lookbook shows only
+what's left on the shelf.
+
+To start one, open the command post (`#reset`) and use **NEXT DROP**: pick a time
+(or start now), confirm, done. **Don't** use the three `RESET` buttons for this —
+they wipe every claim and return to drop 001.
 
 ## Layout
 
@@ -39,11 +52,13 @@ web/   Static no-build SPA     → deploy to Cloudflare Pages
 
 | Method | Path        | Purpose |
 | ------ | ----------- | ------- |
-| GET    | `/config`   | `drop_time` + server clock (countdown sync) |
+| GET    | `/config`   | `drop_time` + server clock (countdown sync), `round`, `player_count` |
 | GET    | `/mres`     | Full stock status — polled every ~1.5s |
 | POST   | `/claim`    | **The only mutating endpoint.** `{ mre_id, user }` → 200 win, 409 `taken`/`already_have`, 403 `not_live` |
 | GET    | `/manifest` | Claimed items + who, for the results screen |
-| POST   | `/reset`    | Dev tool. `{ secret, drop_in_seconds? }` clears claims and optionally reschedules the drop |
+| POST   | `/reset`    | Dev tool. `{ secret, drop_in_seconds? }` clears claims, returns to drop 001, optionally reschedules |
+| POST   | `/admin/round` | `{ secret, drop_in_seconds, round? }` starts the next drop (or sets an explicit one) and reschedules it. **Claims untouched** |
+| POST   | `/admin/item` | `{ secret, mre_id, claimed_by }` assigns (name) or clears (null) one item |
 
 ## Run locally
 
@@ -70,6 +85,9 @@ curl -X POST localhost:3000/reset -H 'Content-Type: application/json' \
 Open the site with `#reset` on the URL — e.g. `https://your-site.pages.dev/#reset`
 (or `#admin`). The hidden **command post** panel lets you, without touching curl:
 
+- **Next drop**: starts another drop on the same board — keeps every claim, bumps
+  the drop number, and schedules the new time (date picker, or start now). The
+  drop-number box can be edited to roll back a misfire.
 - **Reset claims — drop live now**: clears every claim, drop stays open.
 - **Reset claims + countdown in N min**: clears claims and reschedules the
   drop. Everyone's open tab snaps back to the countdown within ~15 seconds

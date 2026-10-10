@@ -28,7 +28,8 @@ const state = {
   mres: [],
   dropTime: null,     // ms epoch
   clockOffset: 0,     // serverNow - clientNow
-  playerCount: 7,     // drop ends after this many claims (server-configured)
+  playerCount: 7,     // a drop ends after this many claims (server-configured)
+  round: 1,           // which drop we're in (server-configured)
   view: null,         // current view name; poll only rerenders 'grid'
   itemId: null,       // item being checked out
   pollTimer: null,
@@ -152,11 +153,17 @@ window.addEventListener('popstate', () => {
   try { routeFromHash(); } finally { fromPop = false; }
 });
 const item = (id) => state.mres.find((m) => m.id === id);
-const myClaim = () => state.mres.find((m) => m.claimed_by === state.me);
-const claimedCount = () => state.mres.filter((m) => m.claimed).length;
-// Drop ends when every operative holds a kit — leftover items become surplus.
+// Claims are stamped with the drop (round) they happened in; one kit per
+// operative per drop. Pre-rounds data counts as drop 1.
+const inRound = (m) => m.claimed && (m.claim_round ?? 1) === state.round;
+const myClaim = () => state.mres.find((m) => m.claimed_by === state.me && inRound(m));
+const roundClaimCount = () => state.mres.filter(inRound).length;
+const unclaimedCount = () => state.mres.filter((m) => !m.claimed).length;
+// A drop ends when every operative holds a kit, or the shelf is empty.
+// Leftover items become surplus.
 const dropOver = () => state.mres.length > 0
-  && claimedCount() >= Math.min(state.playerCount, state.mres.length);
+  && (roundClaimCount() >= state.playerCount || unclaimedCount() === 0);
+const dropLabel = (n = state.round) => `DROP ${String(n).padStart(3, '0')}`;
 
 // ---------------- API ----------------
 async function apiGet(path) {
@@ -196,6 +203,7 @@ async function syncConfig() {
   state.clockOffset = new Date(cfg.server_now).getTime() - Date.now();
   state.dropTime = cfg.drop_time ? new Date(cfg.drop_time).getTime() : 0;
   if (cfg.player_count) state.playerCount = cfg.player_count;
+  if (cfg.round) state.round = cfg.round;
 }
 
 // ---------------- polling ----------------
@@ -206,10 +214,17 @@ function startPolling() {
     // Every ~10th poll, re-sync drop_time so an admin reset that reschedules
     // the drop pulls live clients back to the countdown without a refresh.
     if (++pollCount % 10 === 0) {
+      const prevRound = state.round;
       await syncConfig().catch(() => {});
-      if (state.dropTime && serverNow() < state.dropTime
-          && (state.view === 'grid' || state.view === 'manifest')) {
+      const parked = state.view === 'grid' || state.view === 'manifest';
+      if (state.dropTime && serverNow() < state.dropTime && parked) {
         return showCountdown();
+      }
+      // A new drop went live with no countdown: leave the old drop's results.
+      if (state.round !== prevRound && parked) {
+        manifestAutoShown = false;
+        await refreshStock().catch(() => {});
+        return route();
       }
     }
     try { await refreshStock(); } catch { return; }
@@ -255,10 +270,11 @@ function showGate(msg = '') {
   const submit = async () => {
     const name = input.value.trim().toUpperCase().replace(/\s+/g, ' ');
     if (name.length < 2) return showGate('THAT NAME IS TOO SHORT.');
-    try { await refreshStock(); } catch {}
-    // Name is the claim key. If it already holds a kit, this is probably the
-    // same person on a new device — confirm instead of locking them out.
-    const holder = state.mres.find((m) => m.claimed_by === name);
+    try { await Promise.all([refreshStock(), syncConfig()]); } catch {}
+    // Name is the claim key. If it already holds a kit THIS drop, this is
+    // probably the same person on a new device — confirm instead of locking
+    // them out. (A winner from an earlier drop just walks in.)
+    const holder = state.mres.find((m) => m.claimed_by === name && inRound(m));
     if (holder) return showGateConfirm(name, holder);
     state.me = name;
     localStorage.setItem(LS.name, name);
@@ -319,12 +335,14 @@ function showCountdown() {
       <div class="classified mono">// OPERATION: CHOW CALL // EYES ONLY //</div>
       <div class="boxlogo">supremRe<span class="tm">™</span></div>
       <h1 class="stencil">Ration Drop Imminent</h1>
-      <p class="sub">${state.mres.length || 12} meals &middot; ${state.playerCount} operatives &middot; first come, first served</p>
+      <p class="sub">${dropLabel()} &middot; ${state.mres.length ? unclaimedCount() : 12} meals &middot; first come, first served</p>
       <div id="clock" class="clock">--:--</div>
       <p class="queuepos">YOU ARE <b id="qpos">#—</b> IN LINE OF ~${CFG.FAKE_QUEUE_TOTAL.toLocaleString()}</p>
       <div class="rules">
         <h3>RULES OF THE DROP</h3>
-        <li>ONE (1) MRE PER OPERATIVE. ${esc(String(state.playerCount))} KITS END THE DROP.</li>
+        <li>${state.round > 1
+          ? 'ONE (1) MRE PER OPERATIVE PER DROP. THE DROP ENDS WHEN THE SHELF IS EMPTY.'
+          : `ONE (1) MRE PER OPERATIVE. ${esc(String(state.playerCount))} KITS END THE DROP.`}</li>
         <li>FIRST COME, FIRST SERVE. PAYMENT COMPLETION IS THE ONLY LOCK.</li>
         <li>IF YOUR MENU IS SECURED BY ANOTHER OPERATIVE, DEPLOY FOR ANOTHER.</li>
         <li>ALL SALES FINAL. ESPECIALLY THE MAPLE SAUSAGE.</li>
@@ -948,15 +966,28 @@ async function showManifest() {
   setView('manifest', 'theme-red');
   let data;
   try { data = await apiGet('/manifest'); } catch { return showGrid(); }
+  // The poll flips grid -> manifest once per drop; "browse the surplus" then
+  // stays on the grid instead of bouncing straight back.
+  manifestAutoShown = true;
 
-  const rows = data.claimed.map((r) => `
+  const rowHTML = (r) => `
     <div class="m-row">
       <div class="m-op">${esc(r.claimed_by)}</div>
       <div class="m-item">
         <div class="nm">${esc(r.name)}</div>
         <div class="mn">MENU NO. ${r.menu_no} · NSN ${esc(r.nsn)}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  // Earlier drops' results stay on the record, grouped under their own heading.
+  const byDrop = new Map();
+  data.claimed.forEach((r) => {
+    const n = r.claim_round ?? 1;
+    if (!byDrop.has(n)) byDrop.set(n, []);
+    byDrop.get(n).push(r);
+  });
+  const multi = byDrop.size > 1;
+  const rows = [...byDrop.entries()].sort((a, b) => a[0] - b[0]).map(([n, rs]) =>
+    `${multi ? `<div class="m-round">${dropLabel(n)}</div>` : ''}${rs.map(rowHTML).join('')}`).join('');
 
   // The maple sausage puck inherits the vomelette's condolence.
   const cursed = data.claimed.find((r) => /maple/i.test(r.name));
@@ -966,13 +997,17 @@ async function showManifest() {
 
   const players = data.player_count ?? state.playerCount;
   const surplus = data.total - data.claimed.length;
+  const served = data.claimed.filter((r) => (r.claim_round ?? 1) === data.round).length;
+  const servedText = data.round > 1
+    ? `${dropLabel(data.round)} // ${served} ${served === 1 ? 'KIT' : 'KITS'} CLAIMED`
+    : `${served}/${players} OPERATIVES SERVED`;
   $app.innerHTML = `
     <div class="manifest">
       <div class="m-head">
         <div class="boxlogo small">supremRe<span class="tm">™</span></div>
         <h2>AFTER ACTION REPORT</h2>
       </div>
-      <div class="m-sub">// RATION DROP MANIFEST // ${data.claimed.length}/${players} OPERATIVES SERVED // ${surplus} SURPLUS // ALL SALES FINAL //</div>
+      <div class="m-sub">// RATION DROP MANIFEST // ${servedText} // ${surplus} SURPLUS // ALL SALES FINAL //</div>
       ${rows || '<p class="mono">no kits assigned yet.</p>'}
       ${condolence}
       <div class="m-foot">supremRe&trade; &middot; Meal, Ready-to-Eat &middot; unauthorized resale is discouraged</div>
@@ -986,14 +1021,16 @@ async function showManifest() {
 async function showLookbook() {
   setRoute('#/lookbook');
   setView('lookbook', 'theme-red');
-  if (state.mres.length === 0) { try { await refreshStock(); } catch {} }
+  try { await refreshStock(); } catch {}
   const preDrop = state.dropTime && serverNow() < state.dropTime;
+  // From drop 2 on, the lookbook is just what's still on the shelf.
+  const shown = state.round > 1 ? state.mres.filter((m) => !m.claimed) : state.mres;
 
-  const entries = state.mres.map((m, idx) => `
+  const entries = shown.map((m, idx) => `
     <figure class="lb-entry">
       ${pouchHTML(m, 'big')}
       <figcaption>
-        <span class="lb-num">${String(idx + 1).padStart(2, '0')}/${String(state.mres.length).padStart(2, '0')}</span>
+        <span class="lb-num">${String(idx + 1).padStart(2, '0')}/${String(shown.length).padStart(2, '0')}</span>
         <span class="lb-name">${esc(m.name)}</span>
         <p class="lb-desc">${esc(DESC[m.menu_no] || 'Meal, Ready-to-Eat. Individual.')}</p>
       </figcaption>
@@ -1007,7 +1044,7 @@ async function showLookbook() {
     </header>
     <div class="lb-head">
       <h1 class="lb-title">Lookbook</h1>
-      <div class="lb-sub mono">DROP 001 &mdash; MEAL, READY-TO-EAT &mdash; ${state.mres.length} MENUS &mdash; FLAVOR PREVIEW</div>
+      <div class="lb-sub mono">${dropLabel()} &mdash; MEAL, READY-TO-EAT &mdash; ${shown.length} MENUS ${state.round > 1 ? 'REMAINING' : '&mdash; FLAVOR PREVIEW'}</div>
     </div>
     <div class="lookbook">${entries}</div>
     <div style="text-align:center;padding:18px 0">
@@ -1033,6 +1070,7 @@ async function showAdmin() {
       <input id="adm-mins" class="gate-input" type="number" min="0" step="1" value="15"
              placeholder="MINUTES UNTIL DROP" style="font-family:var(--courier);font-size:1rem">
 
+      <p class="mono adm-note">the reset buttons below wipe EVERY claim and return to drop 001. to run another drop and keep the results, use NEXT DROP.</p>
       <button id="adm-reset-live" class="btn btn-red btn-block" style="margin-bottom:10px">
         RESET CLAIMS — DROP LIVE NOW
       </button>
@@ -1048,6 +1086,23 @@ async function showAdmin() {
       <button id="adm-clear-local" class="btn" style="margin-bottom:10px;background:var(--drab-dark);color:var(--sand);width:100%">
         CLEAR THIS BROWSER'S DATA (name, card, ball pay)
       </button>
+
+      <div class="adm-stock-head">NEXT DROP <span id="adm-round-now"></span></div>
+      <div class="adm-next">
+        <p class="mono adm-note">starts another drop on the same board. keeps ALL claims; everyone can claim one more kit.</p>
+        <label class="mono adm-note" for="adm-round" style="display:block;margin-bottom:4px">drop number to start (edit to roll back)</label>
+        <input id="adm-round" class="gate-input" type="number" min="1" step="1"
+               placeholder="DROP NUMBER" style="font-family:var(--courier);font-size:1rem">
+        <label class="mono adm-note" for="adm-next-when" style="display:block;margin-bottom:4px">start time (your local time)</label>
+        <input id="adm-next-when" class="gate-input" type="datetime-local"
+               style="font-family:var(--courier);font-size:1rem">
+        <button id="adm-next-at" class="btn btn-red btn-block" style="margin-bottom:10px">
+          START NEXT DROP AT SELECTED TIME &mdash; KEEPS ALL CLAIMS
+        </button>
+        <button id="adm-next-now" class="btn btn-block" style="margin-bottom:10px;background:var(--drab-dark);color:var(--sand)">
+          START NEXT DROP NOW
+        </button>
+      </div>
 
       <div class="adm-stock-head">STOCK CONTROL</div>
       <div id="adm-stock" class="adm-stock mono">loading stock...</div>
@@ -1110,16 +1165,69 @@ async function showAdmin() {
     if (!Number.isFinite(mins) || mins < 0) { status.textContent = 'MINUTES MUST BE A NUMBER.'; return; }
     doReset(Math.round(mins * 60));
   };
-  document.getElementById('adm-reset-at').onclick = async () => {
-    if (!whenInput.value) { status.textContent = 'PICK A DATE AND TIME.'; return; }
-    const target = new Date(whenInput.value).getTime(); // local wall-clock
-    // Sync the server clock first so the computed offset is exact even if
-    // this device's clock drifts.
+  // Picked local wall-clock time -> seconds from now on the SERVER clock.
+  // Re-syncs first so the offset is exact even if this device's clock drifts.
+  const pickedSeconds = async (input) => {
+    if (!input.value) { status.textContent = 'PICK A DATE AND TIME.'; return null; }
+    const target = new Date(input.value).getTime();
     await syncConfig().catch(() => {});
     const secs = Math.round((target - serverNow()) / 1000);
-    if (secs <= 0) { status.textContent = 'THAT TIME IS IN THE PAST, TIME TRAVELER.'; return; }
-    doReset(secs);
+    if (secs <= 0) { status.textContent = 'THAT TIME IS IN THE PAST, TIME TRAVELER.'; return null; }
+    return secs;
   };
+
+  document.getElementById('adm-reset-at').onclick = async () => {
+    const secs = await pickedSeconds(whenInput);
+    if (secs !== null) doReset(secs);
+  };
+
+  // ---- Next drop: bump the round + reschedule, claims untouched -------------
+  const roundInput = document.getElementById('adm-round');
+  const nextWhen = document.getElementById('adm-next-when');
+  const roundNow = document.getElementById('adm-round-now');
+  nextWhen.value = whenInput.value;
+  const showRound = () => {
+    roundNow.textContent = `(CURRENT: ${dropLabel()})`;
+    roundInput.value = state.round + 1;
+  };
+  syncConfig().then(showRound).catch(() => {});
+
+  const startNextDrop = async (dropInSeconds, whenLabel) => {
+    const secret = document.getElementById('adm-secret').value.trim();
+    if (!secret) { status.textContent = 'ENTER THE RESET SECRET.'; return; }
+    const round = Number(roundInput.value);
+    if (!Number.isInteger(round) || round < 1) { status.textContent = 'DROP NUMBER MUST BE A WHOLE NUMBER.'; return; }
+    if (!confirm(`Start ${dropLabel(round)} ${whenLabel}?\n\nAll existing claims are kept.`)) return;
+    localStorage.setItem(LS.adminSecret, secret);
+    status.textContent = 'TRANSMITTING...';
+    try {
+      const res = await fetch(`${API}/admin/round`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, drop_in_seconds: dropInSeconds, round }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        status.textContent = body.reason === 'bad_secret'
+          ? 'BAD SECRET. ACCESS DENIED.' : `FAILED (${res.status}).`;
+        return;
+      }
+      await syncConfig().catch(() => {});
+      await refreshStock().catch(() => {});
+      const t = new Date(body.drop_time).toLocaleString();
+      status.textContent = `${dropLabel(body.round)} SCHEDULED FOR ${t}. ALL CLAIMS KEPT.`;
+      showRound();
+      renderStock();
+    } catch {
+      status.textContent = 'TRANSMISSION FAILED. IS THE API UP?';
+    }
+  };
+
+  document.getElementById('adm-next-at').onclick = async () => {
+    const secs = await pickedSeconds(nextWhen);
+    if (secs !== null) startNextDrop(secs, `at ${new Date(nextWhen.value).toLocaleString()}`);
+  };
+  document.getElementById('adm-next-now').onclick = () => startNextDrop(-1, 'right now');
   document.getElementById('adm-clear-local').onclick = () => {
     [LS.name, LS.card, LS.cardSaved, LS.ballpay, LS.queue, LS.cart].forEach((k) => localStorage.removeItem(k));
     state.me = null;
